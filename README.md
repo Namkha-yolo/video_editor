@@ -240,6 +240,13 @@ uvicorn api:app --reload --port 8000
 
 ## Team Roles & Work Breakdown
 
+Member 1 - Suhyeon yoo
+Member 2 - XinBao Chen
+Member 3 - Namkha Oedzer
+Member 4 - Jianhua Deng
+
+
+
 ### Member 1 — Frontend (`client/`)
 
 **Owns:** Everything the user sees and interacts with.
