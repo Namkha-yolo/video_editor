@@ -15,16 +15,16 @@ The key differentiator: Claude doesn't apply a flat filter. It receives each cli
 
 ```
 ┌─────────────┐       ┌──────────────┐       ┌────────────────┐
-│   Client     │──────▶│   Server     │──────▶│  AI Pipeline   │
-│  React/Vite  │◀──────│  Express     │◀──────│  FastAPI        │
-│  :5173       │  WS   │  :3001       │       │  :8000          │
-└─────────────┘       └──────┬───────┘       └────────────────┘
-                             │
-                 ┌───────────┼───────────┐
-                 │           │           │
+│   Client    │──────▶│   Server     │──────▶│  AI Pipeline   │
+│  React/Vite │◀──────│  Express     │◀──────│  FastAPI       │
+│  :5173      │  WS   │  :3001       │       │  :8000         │
+└─────────────┘       └─────┬──────--┘       └────────────────┘
+                            │
+                 ┌──────────┼─────────-─┐
+                 │          │           │
            ┌─────┴──┐  ┌────┴───┐  ┌────┴────┐
-           │ Redis   │  │Supabase│  │ Claude  │
-           │ :6379   │  │ (cloud)│  │  (API)  │
+           │ Redis  │  │Supabase│  │ Claude  │
+           │ :6379  │  │ (cloud)│  │  (API)  │
            └────────┘  └────────┘  └─────────┘
 ```
 
@@ -467,8 +467,8 @@ create policy "Users see own jobs" on jobs
 ## Dependencies Between Team Members
 
 ```
-Member 4 (Infra) ──── does first ────┐
-   Sets up Supabase project           │
+Member 4 (Infra) ──── does first ───--─┐
+   Sets up Supabase project            │
    Creates DB tables + storage         │
    Shares .env keys with team          │
                                        ▼
@@ -489,9 +489,9 @@ Member 3 (AI/ML)
 
 **Week 1 — Foundation (everyone works in parallel)**
 - Member 4: Supabase project, DB tables, storage buckets, share keys
-- Member 3: `ffmpeg.py` wrappers + `analyzer.py` (test with sample clips)
-- Member 2: `moods.ts` presets + `upload.ts` route
-- Member 1: `LoginPage` + `Layout` + auth flow
+- Namkha Oedzer 3: `ffmpeg.py` wrappers + `analyzer.py` (test with sample clips)
+- Jianhua Deng 2: `moods.ts` presets + `upload.ts` route
+- Suhyeon yoo 1: `LoginPage` + `Layout` + auth flow
 
 **Week 2 — Core features (parallel)**
 - Member 3: `grader.py` (FFmpeg color grading)
