@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  # --- Infrastructure ---
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  # --- Application ---
+
+  client:
+    build:
+      context: ./client
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client/src:/app/src
+      - ./shared:/app/../shared
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: ./server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/src:/app/src
+      - ./shared:/app/../shared
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_PIPELINE_URL=http://ai-pipeline:8000
+    depends_on:
+      - redis
+
+  ai-pipeline:
+    build:
+      context: ./ai-pipeline
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai-pipeline:/app
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+
+volumes:
+  redis-data:
