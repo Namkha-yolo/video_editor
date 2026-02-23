@@ -495,27 +495,27 @@ Member 3 (AI/ML)
 ## Suggested Timeline
 
 **Week 1 — Foundation (everyone works in parallel)**
-- Member 4: Supabase project, DB tables, storage buckets, share keys
-- Namkha Oedzer 3: `ffmpeg.py` wrappers + `analyzer.py` (test with sample clips)
-- Jianhua Deng 2: `moods.ts` presets + `upload.ts` route
-- Suhyeon yoo 1: `LoginPage` + `Layout` + auth flow
+- Jianhua Deng (4): Supabase project, DB tables, storage buckets, share keys
+- Namkha Oedzer (3): `ffmpeg.py` wrappers + `analyzer.py` (test with sample clips)
+- XinBao Chen (2): `moods.ts` presets + `upload.ts` route
+- Suhyeon yoo (1): `LoginPage` + `Layout` + auth flow
 
 **Week 2 — Core features (parallel)**
-- Member 3: `grader.py` (FFmpeg color grading)
-- Member 2: `moodEngine.ts` (Claude API) + `jobQueue.ts` (BullMQ worker)
-- Member 1: `UploadPage` + `MoodPage`
-- Member 4: Finalize shared types + test Docker setup end-to-end
+- Namkha Oedzer (3): `grader.py` (FFmpeg color grading)
+- XinBao Chen  (2): `moodEngine.ts` (Claude API) + `jobQueue.ts` (BullMQ worker)
+- Suhyeon yoo (1): `UploadPage` + `MoodPage`
+- Jianhua Deng (4): Finalize shared types + test Docker setup end-to-end
 
 **Week 3 — Integration & output (connect everything)**
-- Member 2: `videoProcessor.ts` + `jobs.ts` routes fully working + WebSocket events
-- Member 1: `ProcessingPage` + `ExportPage` + `DashboardPage`
-- Member 3: Edge cases (corrupt files, long videos, timeout handling)
-- Member 4: Deploy staging to Render, test full flow
+- XinBao Chen  (2): `videoProcessor.ts` + `jobs.ts` routes fully working + WebSocket events
+- Suhyeon yoo (1): `ProcessingPage` + `ExportPage` + `DashboardPage`
+- Namkha Oedzer (3): Edge cases (corrupt files, long videos, timeout handling)
+- Jianhua Deng (4): Deploy staging to Render, test full flow
 
 **Week 4 — Polish**
 - All: Error handling, loading states, mobile responsiveness
-- Member 2: Rate limiting, input sanitization
-- Member 4: Cleanup cron for expired files, monitoring
+- XinBao Chen  (2): Rate limiting, input sanitization
+- Jianhua Deng (4): Cleanup cron for expired files, monitoring
 - All: Testing, bug fixes, demo prep
 
 ## Processing Pipeline
