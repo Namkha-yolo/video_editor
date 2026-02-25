@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -33,13 +39,32 @@ app.get("/api/health", (_req, res) => {
 
 // WebSocket
 io.on("connection", (socket) => {
-  // TODO: Handle job subscription for real-time progress
   console.log("Client connected:", socket.id);
+
+  // Client subscribes to a job's progress updates
+  socket.on("subscribe", (jobId: string) => {
+    if (jobId) {
+      socket.join(`job:${jobId}`);
+      console.log(`Socket ${socket.id} subscribed to job:${jobId}`);
+    }
+  });
+
+  // Client unsubscribes from a job
+  socket.on("unsubscribe", (jobId: string) => {
+    if (jobId) {
+      socket.leave(`job:${jobId}`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
 });
+
+// Export io so other modules (jobQueue) can emit events
+export { io };
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-export { io };
