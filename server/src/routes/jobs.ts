@@ -28,7 +28,7 @@ router.post("/", requireAuth, async (req, res) => {
     .single();
 
   if (error) {
-    return res.status(500).json({ error: "Failed to create job, DB Error" });
+    return res.status(500).json({ error: error.message });
   }
 
   // Push the job to redis for worker to find
@@ -45,8 +45,19 @@ router.post("/", requireAuth, async (req, res) => {
 
 // GET /api/jobs - List user's jobs
 router.get("/", requireAuth, async (req, res) => {
-  // TODO: Query jobs for authenticated user
-  res.status(501).json({ error: "Not implemented" });
+  const user = (req as any).user;
+
+  const { data: jobs, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.status(200).json({ jobs });
 });
 
 // GET /api/jobs/:id - Get job status + outputs
