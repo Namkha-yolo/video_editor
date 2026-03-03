@@ -37,6 +37,23 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// Root welcome message
+app.get("/", (_req, res) => {
+  res.json({
+    name: "ClipVibe API",
+    version: "0.1.0",
+    status: "running",
+    endpoints: {
+      health: "/api/health",
+      moods: "/api/moods",
+      upload: "/api/upload",
+      clips: "/api/clips",
+      jobs: "/api/jobs"
+    },
+    documentation: "See README.md for full API documentation"
+  });
+});
+
 // WebSocket
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
