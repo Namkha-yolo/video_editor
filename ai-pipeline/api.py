@@ -4,9 +4,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from starlette.background import BackgroundTask
 
 from services.analyzer import analyze_clip
+from services.grader import grade_clip, GradingError
 from utils.ffmpeg import probe
 
 logging.basicConfig(level=logging.INFO)
@@ -111,9 +114,46 @@ async def probe_clip(
 
 
 @app.post("/grade")
-async def grade_clip():
-    """Apply FFmpeg color grading filters to a clip."""
-    # TODO (Week 2): Receive clip file + FFmpeg filter params
-    # TODO (Week 2): Run FFmpeg with color grading filters via grader.py
-    # TODO (Week 2): Return graded file
-    return {"error": "Not implemented — scheduled for Week 2"}
+async def grade(
+    file: UploadFile = File(...),
+    filters: str = Form(...),
+):
+    """Apply FFmpeg color grading filters to a clip and return the graded file."""
+    # --- validate extension ---
+    ext = Path(file.filename or "video.mp4").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
+    # --- validate filters ---
+    if not filters or not filters.strip():
+        raise HTTPException(status_code=400, detail="filters must not be empty")
+
+    # --- save upload to temp file ---
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        content = await file.read()
+        tmp.write(content)
+
+    try:
+        output_path = grade_clip(tmp_path, filters)
+        cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
+        return FileResponse(
+            output_path,
+            media_type="video/mp4",
+            filename="graded_output.mp4",
+            background=cleanup,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except GradingError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.exception("Unexpected error grading clip")
+        raise HTTPException(status_code=500, detail=f"Grading failed: {e}")
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
