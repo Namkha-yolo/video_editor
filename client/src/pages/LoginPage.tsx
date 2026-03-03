@@ -1,8 +1,32 @@
+import { useState } from "react";
 import { Film, Github, Sparkles } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
 export default function LoginPage() {
   // TODO: Google + GitHub OAuth buttons via Supabase Auth
+  const [loadingProvider, setLoadingProvider] = useState<
+    "google" | "github" | null
+  >(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleOAuthSignIn = async (provider: "google" | "github") => {
+    setErrorMessage(null);
+    setLoadingProvider(provider);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoadingProvider(null);
+    }
+  };
+
   return (
     <div className="login-page">
       <div className="login-bg">
@@ -12,6 +36,11 @@ export default function LoginPage() {
 
       <div className="login-shell">
         <section className="login-hero">
+          <div className="login-chip">
+            <Film size={16} className="login-chip-icon" />
+            AI-powered mood color grading
+          </div>
+
           <h1 className="login-title">
             Match your video tone faster with ClipVibe
           </h1>
@@ -43,17 +72,34 @@ export default function LoginPage() {
           </div>
 
           <div className="login-actions">
-            <button type="button" className="login-action-button">
+            <button
+              type="button"
+              className="login-action-button"
+              onClick={() => void handleOAuthSignIn("google")}
+              disabled={loadingProvider !== null}
+            >
               <Sparkles size={18} />
-              Continue with Google
+              {loadingProvider === "google"
+                ? "Connecting..."
+                : "Continue with Google"}
             </button>
-            <button type="button" className="login-action-button">
+            <button
+              type="button"
+              className="login-action-button"
+              onClick={() => void handleOAuthSignIn("github")}
+              disabled={loadingProvider !== null}
+            >
               <Github size={18} />
-              Continue with GitHub
+              {loadingProvider === "github"
+                ? "Connecting..."
+                : "Continue with GitHub"}
             </button>
           </div>
 
-          <p className="login-text">ClipVibe can be used in various ways.</p>
+          <p className="login-text">
+            {errorMessage ??
+              "Use Google or GitHub to sign in and continue to your dashboard."}
+          </p>
         </section>
       </div>
     </div>
