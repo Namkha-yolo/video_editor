@@ -1,8 +1,10 @@
 import logging
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+import httpx
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -25,7 +27,26 @@ app.add_middleware(
 )
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
+DOWNLOAD_TIMEOUT = 120  # seconds
 
+
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
+
+class AnalyzeRequest(BaseModel):
+    signed_url: str
+    clip_id: str = ""
+
+
+class GradeRequest(BaseModel):
+    signed_url: str
+    filters: str
+
+
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
 
 class ClipAnalysisResponse(BaseModel):
     clip_id: str
@@ -43,35 +64,68 @@ class ProbeResponse(BaseModel):
     codec: str
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
+async def _download_to_temp(signed_url: str) -> str:
+    """Download a video from a signed URL to a temp file.
 
-@app.post("/analyze", response_model=ClipAnalysisResponse)
-async def analyze(
-    file: UploadFile = File(...),
-    clip_id: str = Form(""),
-):
-    """Analyze a video clip's visual properties (brightness, colors, contrast).
+    Returns the path to the temp file. Caller owns cleanup.
 
-    Accepts a video file via multipart upload and returns a ClipAnalysis
-    with brightness, contrast, dominant colors, and color temperature.
+    Raises:
+        HTTPException: If download fails or the file extension is unsupported.
     """
-    ext = Path(file.filename or "video.mp4").suffix.lower()
+    parsed = urlparse(signed_url)
+    ext = Path(parsed.path).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                signed_url, timeout=DOWNLOAD_TIMEOUT, follow_redirects=True
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to download video: HTTP {e.response.status_code}",
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to download video: {e}"
+        )
+
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp_path = tmp.name
-        content = await file.read()
-        tmp.write(content)
+        tmp.write(resp.content)
+        return tmp.name
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.post("/analyze", response_model=ClipAnalysisResponse)
+async def analyze(body: AnalyzeRequest):
+    """Analyze a video clip's visual properties (brightness, colors, contrast).
+
+    Accepts a Supabase signed URL, downloads the video, and returns a
+    ClipAnalysis with brightness, contrast, dominant colors, and color
+    temperature.
+    """
+    tmp_path = await _download_to_temp(body.signed_url)
 
     try:
-        result = analyze_clip(tmp_path, clip_id=clip_id)
+        result = analyze_clip(tmp_path, clip_id=body.clip_id)
         return result
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -114,31 +168,19 @@ async def probe_clip(
 
 
 @app.post("/grade")
-async def grade(
-    file: UploadFile = File(...),
-    filters: str = Form(...),
-):
-    """Apply FFmpeg color grading filters to a clip and return the graded file."""
-    # --- validate extension ---
-    ext = Path(file.filename or "video.mp4").suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
+async def grade(body: GradeRequest):
+    """Apply FFmpeg color grading filters to a clip and return the graded file.
 
-    # --- validate filters ---
-    if not filters or not filters.strip():
+    Accepts a Supabase signed URL + FFmpeg filter string, downloads the video,
+    applies the filters, and streams back the graded file.
+    """
+    if not body.filters or not body.filters.strip():
         raise HTTPException(status_code=400, detail="filters must not be empty")
 
-    # --- save upload to temp file ---
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp_path = tmp.name
-        content = await file.read()
-        tmp.write(content)
+    tmp_path = await _download_to_temp(body.signed_url)
 
     try:
-        output_path = grade_clip(tmp_path, filters)
+        output_path = grade_clip(tmp_path, body.filters)
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(
             output_path,
