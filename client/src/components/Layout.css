@@ -1,6 +1,7 @@
 .layout {
   min-height: 100vh;
   background-color: #030712;
+  color: #e5e7eb;
 }
 
 .layout__header {
@@ -72,10 +73,59 @@
 }
 
 .layout__main {
+  flex: 1;
   margin: 0 auto;
-  max-width: 80rem;
+  width: 100%;
+  max-width: 64rem;
   padding: 2rem 1rem;
 }
+
+.layout__body {
+  margin: 0 auto;
+  display: flex;
+  width: 100%;
+  max-width: 80rem;
+}
+
+.layout__sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid #1f2937;
+  padding: 1.5rem 1rem;
+}
+
+.layout__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.layout__nav-link {
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #d1d5db;
+  text-decoration: none;
+  transition:
+    background-color 150ms ease-in-out,
+    border-color 150ms ease-in-out,
+    color 150ms ease-in-out;
+}
+
+.layout__nav-link:hover {
+  border-color: #374151;
+  background-color: #111827;
+  color: #fff;
+}
+
+.layout__nav-link--active {
+  border-color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.18);
+  color: #bfdbfe;
+}
+
 .layout__brand-logo {
   height: 1.5rem;
   width: auto;
@@ -85,4 +135,22 @@
 .layout__brand-text {
   line-height: 1;
   font-size: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .layout__body {
+    flex-direction: column;
+  }
+
+  .layout__sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #1f2937;
+    padding: 0.75rem 1rem;
+  }
+
+  .layout__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
