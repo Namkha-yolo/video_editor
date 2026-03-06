@@ -1,7 +1,16 @@
-// TODO: Clip analysis via FFprobe (brightness, colors, metadata)
-// TODO: Apply FFmpeg color grading filters (from moodEngine output)
-// TODO: Upload graded clips to Supabase Storage
-// TODO: Generate before/after thumbnails
+/**
+ * Video Processing Orchestrator
+ * Coordinates the entire video grading pipeline
+ */
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+import axios from "axios";
+import { supabase } from "../config/supabase.js";
+import { generateGradingFilters, buildFallbackFilters } from "./moodEngine.js";
+import type { Mood } from "../../../shared/types/mood.js";
+import type { ClipAnalysis } from "../../../shared/types/clip.js";
+import { io } from "../index.js";
 
 import { supabase } from "../config/supabase";
 import type { Mood } from '@clipvibe/shared';

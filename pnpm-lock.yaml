@@ -77,6 +77,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.97.0
+      axios:
+        specifier: ^1.7.3
+        version: 1.13.5
       bullmq:
         specifier: ^5.10.3
         version: 5.70.1
