@@ -1,10 +1,10 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, type Router as RouterType } from "express";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 
-const router = Router();
+const router: RouterType = Router();
 
 // ── Multer config: store files in memory, max 500 MB ────────────────────
 const ALLOWED_MIMES = ["video/mp4", "video/quicktime", "video/webm"];

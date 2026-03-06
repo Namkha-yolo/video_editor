@@ -77,24 +77,43 @@ async function createPersistentTestJob() {
     }),
   });
 
+  if (!response.ok) {
+    console.log(`❌ Failed to create job: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    console.log(`   Error: ${JSON.stringify(errorData, null, 2)}`);
+    return;
+  }
+
   const data = await response.json();
-  console.log(`✅ Job created: ${data.job_id}`);
-  console.log(`   Initial status: ${data.status}\n`);
+  const jobId = data.jobId;
+  
+  if (!jobId) {
+    console.log(`❌ No jobId in response:`, data);
+    return;
+  }
+  
+  console.log(`✅ Job created: ${jobId}\n`);
 
   // Wait for processing
   console.log("⏳ Waiting 3 seconds for processing...\n");
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
   // Check final status
-  const statusResponse = await fetch(`${API_BASE}/jobs/${data.job_id}`, {
+  const statusResponse = await fetch(`${API_BASE}/jobs/${jobId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  
+  if (!statusResponse.ok) {
+    console.log(`❌ Failed to get job status: ${statusResponse.status}`);
+    return;
+  }
+  
   const jobData = await statusResponse.json();
 
   console.log("📊 Final Job Status:");
   console.log(`   Status: ${jobData.status}`);
   console.log(`   Mood: ${jobData.mood}`);
-  console.log(`   Clips: ${jobData.clip_ids.length}`);
+  console.log(`   Clips: ${jobData.clip_ids?.length || 0}`);
   if (jobData.error_message) {
     console.log(`   Error: ${jobData.error_message}`);
   }
@@ -104,7 +123,7 @@ async function createPersistentTestJob() {
   console.log("✨ Now go to Supabase Dashboard:");
   console.log("   1. Click 'Table Editor' → 'jobs' table");
   console.log("   2. Click the refresh icon");
-  console.log(`   3. Look for job ID: ${data.job_id}`);
+  console.log(`   3. Look for job ID: ${jobId}`);
   console.log();
   console.log("   You should see:");
   console.log(`   - status: "${jobData.status}"`);
@@ -115,7 +134,7 @@ async function createPersistentTestJob() {
   console.log();
 
   console.log("🧹 To clean up later, run:");
-  console.log(`   DELETE FROM jobs WHERE id = '${data.job_id}';`);
+  console.log(`   DELETE FROM jobs WHERE id = '${jobId}';`);
   console.log(`   DELETE FROM clips WHERE id IN ('${clip1Id}', '${clip2Id}');`);
 }
 

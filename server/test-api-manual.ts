@@ -180,7 +180,7 @@ async function testCreateJob(
   logSuccess(`Job created successfully!`);
   console.log(JSON.stringify(data, null, 2));
 
-  return data.job_id;
+  return data.jobId;
 }
 
 /**
@@ -319,7 +319,7 @@ async function runTests() {
   let testUser: any;
   let authToken: string;
   let clipIds: string[];
-  let jobId: string;
+  let jobId: string | undefined;
 
   try {
     // Step 1: Setup test user

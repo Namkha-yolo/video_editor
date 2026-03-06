@@ -2,15 +2,15 @@
  * Job management routes
  * Handles creation, querying, and downloading of grading jobs
  */
-import { Router } from "express";
+import { Router, type Router as RouterType } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
-import { processJob } from "../services/videoProcessor.js";
 import type { Mood } from "../../../shared/types/mood.js";
 import { gradingQueue } from "../services/jobQueue.js";
+import { processGradingJob } from "../services/videoProcessor.js";
 
-const router = Router();
+const router: RouterType = Router();
 
 // Validation schemas
 const CreateJobSchema = z.object({
@@ -46,12 +46,20 @@ router.post("/", requireAuth, async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  // Push the job to redis for worker to find
-  await gradingQueue.add("grade", {
-    jobId: job.id,
-    mood,
-    clip_ids
-  });
+  // If Redis/Queue available, use it. Otherwise process directly
+  if (gradingQueue) {
+    await gradingQueue.add("grade", {
+      jobId: job.id,
+      mood,
+      clip_ids
+    });
+  } else {
+    // Fallback: process directly without queue (for development/testing)
+    console.log("⚠️  Processing job directly (no queue available)");
+    processGradingJob(job.id, mood as Mood, clip_ids).catch((err) => {
+      console.error("Direct processing error:", err);
+    });
+  }
 
   // Return the job ID to the client to let them know we've started processing
   res.status(200).json({ jobId: job.id });

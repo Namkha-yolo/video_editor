@@ -12,9 +12,6 @@ import type { Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 import { io } from "../index.js";
 
-import { supabase } from "../config/supabase";
-import type { Mood } from '@clipvibe/shared';
-
 export async function processGradingJob(jobId: string, mood: Mood, clipIds: string[]) {
 
     // Fetch clip details from Supabase
