@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 import { processJob } from "../services/videoProcessor.js";
 import type { Mood } from "../../../shared/types/mood.js";
+import { gradingQueue } from "../services/jobQueue.js";
 
 const router = Router();
 
@@ -21,119 +22,59 @@ const CreateJobSchema = z.object({
  * POST /api/jobs - Create a new grading job
  */
 router.post("/", requireAuth, async (req, res) => {
-  try {
-    // Validate request body
-    const validation = CreateJobSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({ 
-        error: "Invalid request", 
-        details: validation.error.flatten() 
-      });
-    }
 
-    const { mood, clip_ids } = validation.data;
-    const userId = (req as any).user.id;
+  const { mood, clip_ids } = req.body;
+  const user = (req as any).user;
 
-    // Verify all clips belong to the user
-    const { data: userClips, error: clipsError } = await supabase
-      .from("clips")
-      .select("id")
-      .in("id", clip_ids)
-      .eq("user_id", userId);
-
-    if (clipsError) {
-      return res.status(500).json({ error: "Failed to verify clips" });
-    }
-
-    if (!userClips || userClips.length !== clip_ids.length) {
-      return res.status(403).json({ 
-        error: "One or more clips not found or don't belong to you" 
-      });
-    }
-
-    // Create job record in database
-    const { data: job, error: jobError } = await supabase
-      .from("jobs")
-      .insert({
-        user_id: userId,
-        mood,
-        status: "queued",
-        clip_ids,
-        output_paths: [],
-      })
-      .select()
-      .single();
-
-    if (jobError || !job) {
-      return res.status(500).json({ 
-        error: "Failed to create job",
-        details: jobError?.message 
-      });
-    }
-
-    console.log(`Created job ${job.id} for user ${userId}`);
-
-    // Start processing asynchronously (in real implementation, use BullMQ)
-    // For now, process directly in background
-    processJob({
-      jobId: job.id,
-      mood: mood as Mood,
-      clipIds: clip_ids,
-      userId,
-    }).catch((error) => {
-      console.error(`Job ${job.id} processing failed:`, error);
-    });
-
-    res.status(201).json({ 
-      job_id: job.id,
-      status: job.status,
-      message: "Job created and processing started" 
-    });
-
-  } catch (error: any) {
-    console.error("Create job error:", error);
-    res.status(500).json({ error: "Internal server error" });
+  if (!mood || !clip_ids || !Array.isArray(clip_ids) || clip_ids.length === 0) {
+    return res.status(500).json({ error: "Invalid request body" });
   }
+
+  // Creating the job record in Supabase
+  const {data: job, error } = await supabase
+    .from("jobs")
+    .insert({
+      user_id: user.id,
+      mood,
+      clip_ids,
+      status: "queued"
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  // Push the job to redis for worker to find
+  await gradingQueue.add("grade", {
+    jobId: job.id,
+    mood,
+    clip_ids
+  });
+
+  // Return the job ID to the client to let them know we've started processing
+  res.status(200).json({ jobId: job.id });
+
 });
 
 /**
  * GET /api/jobs - List user's jobs
  */
 router.get("/", requireAuth, async (req, res) => {
-  try {
-    const userId = (req as any).user.id;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+  const user = (req as any).user;
 
-    const { data: jobs, error } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+  const { data: jobs, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      return res.status(500).json({ 
-        error: "Failed to fetch jobs",
-        details: error.message 
-      });
-    }
-
-    // Return jobs with clip count
-    const jobsWithMeta = jobs?.map((job) => ({
-      ...job,
-      clip_count: job.clip_ids.length,
-    })) || [];
-
-    res.json({ 
-      jobs: jobsWithMeta,
-      total: jobsWithMeta.length 
-    });
-
-  } catch (error: any) {
-    console.error("List jobs error:", error);
-    res.status(500).json({ error: "Internal server error" });
+  if (error) {
+    return res.status(500).json({ error: error.message });
   }
+
+  res.status(200).json({ jobs });
 });
 
 /**

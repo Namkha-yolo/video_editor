@@ -6,12 +6,59 @@ import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
 import ProcessingPage from "@/pages/ProcessingPage";
 import ExportPage from "@/pages/ExportPage";
+import { useAuthStore } from "./store/authStore";
+import { useEffect } from "react";
+
+// user: logined USER
+// Private Route: need login
+function ProtectedRoute({ children }: { children: JSX.Element }) {
+  const { user, loading } = useAuthStore();
+
+  if (loading) return <div className="min-h-screen bg-gray-950" />;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// Public Route: without login
+function PublicOnlyRoute({ children }: { children: JSX.Element }) {
+  const { user, loading } = useAuthStore();
+
+  if (loading) return <div className="min-h-screen bg-gray-950" />;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return children;
+}
 
 export default function App() {
+  const initAuth = useAuthStore((s) => s.initAuth);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    void initAuth().then((unsubscribe) => {
+      cleanup = unsubscribe;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, [initAuth]);
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<Layout />}>
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/mood" element={<MoodPage />} />
