@@ -1,74 +1,100 @@
-/**
- * Job management routes
- * Handles creation, querying, and downloading of grading jobs
- */
 import { Router, type Router as RouterType } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
-import type { Mood } from "../../../shared/types/mood.js";
-import { gradingQueue } from "../services/jobQueue.js";
-import { processGradingJob } from "../services/videoProcessor.js";
+import { enqueueGradingJob } from "../services/jobQueue.js";
 
 const router: RouterType = Router();
 
-// Validation schemas
 const CreateJobSchema = z.object({
   mood: z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]),
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
 });
 
-/**
- * POST /api/jobs - Create a new grading job
- */
-router.post("/", requireAuth, async (req, res) => {
+function normaliseClipIds(clipIds: string[]) {
+  return [...new Set(clipIds)];
+}
 
-  const { mood, clip_ids } = req.body;
-  const user = (req as any).user;
+function orderByIds<T extends { id: string }>(items: T[], ids: string[]) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  return ids.map((id) => itemsById.get(id)).filter(Boolean) as T[];
+}
 
-  if (!mood || !clip_ids || !Array.isArray(clip_ids) || clip_ids.length === 0) {
-    return res.status(500).json({ error: "Invalid request body" });
-  }
+async function createSignedUrls(bucket: "clips" | "outputs", paths: string[], expiresIn: number) {
+  return Promise.all(
+    paths.map(async (storagePath) => {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storagePath, expiresIn);
+      if (error || !data?.signedUrl) {
+        return null;
+      }
 
-  // Creating the job record in Supabase
-  const {data: job, error } = await supabase
-    .from("jobs")
-    .insert({
-      user_id: user.id,
-      mood,
-      clip_ids,
-      status: "queued"
+      return data.signedUrl;
     })
-    .select("*")
-    .single();
+  );
+}
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
+router.post("/", requireAuth, async (req, res) => {
+  try {
+    const parsedBody = CreateJobSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        error: "Invalid request body",
+        details: parsedBody.error.flatten(),
+      });
+    }
 
-  // If Redis/Queue available, use it. Otherwise process directly
-  if (gradingQueue) {
-    await gradingQueue.add("grade", {
+    const user = (req as any).user;
+    const clipIds = normaliseClipIds(parsedBody.data.clip_ids);
+
+    const { data: clips, error: clipsError } = await supabase
+      .from("clips")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("id", clipIds);
+
+    if (clipsError) {
+      return res.status(500).json({ error: clipsError.message });
+    }
+
+    if (!clips || clips.length !== clipIds.length) {
+      return res.status(400).json({ error: "Some clips were not found or do not belong to you" });
+    }
+
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .insert({
+        user_id: user.id,
+        mood: parsedBody.data.mood,
+        clip_ids: clipIds,
+        status: "queued",
+        output_paths: [],
+        error_message: null,
+      })
+      .select("*")
+      .single();
+
+    if (jobError || !job) {
+      return res.status(500).json({ error: jobError?.message || "Failed to create job" });
+    }
+
+    await enqueueGradingJob({
       jobId: job.id,
-      mood,
-      clip_ids
+      mood: parsedBody.data.mood,
+      clipIds,
     });
-  } else {
-    // Fallback: process directly without queue (for development/testing)
-    console.log("⚠️  Processing job directly (no queue available)");
-    processGradingJob(job.id, mood as Mood, clip_ids).catch((err) => {
-      console.error("Direct processing error:", err);
+
+    return res.status(201).json({
+      job_id: job.id,
+      jobId: job.id,
+      status: "queued",
+      message: "Job created and processing started",
     });
+  } catch (error: any) {
+    console.error("Create job error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  // Return the job ID to the client to let them know we've started processing
-  res.status(200).json({ jobId: job.id });
-
 });
 
-/**
- * GET /api/jobs - List user's jobs
- */
 router.get("/", requireAuth, async (req, res) => {
   const user = (req as any).user;
 
@@ -82,18 +108,17 @@ router.get("/", requireAuth, async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.status(200).json({ jobs });
+  return res.status(200).json({
+    jobs: jobs || [],
+    total: jobs?.length || 0,
+  });
 });
 
-/**
- * GET /api/jobs/:id - Get job status + outputs
- */
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user.id;
 
-    // Fetch job
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .select("*")
@@ -105,46 +130,53 @@ router.get("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // If job is complete, generate signed URLs for outputs
-    let outputUrls: string[] = [];
-    if (job.status === "complete" && job.output_paths.length > 0) {
-      outputUrls = await Promise.all(
-        job.output_paths.map(async (path: string) => {
-          const { data } = await supabase.storage
-            .from("outputs")
-            .createSignedUrl(path, 3600); // 1 hour expiry
-          return data?.signedUrl || "";
-        })
-      );
+    const clipIds = Array.isArray(job.clip_ids) ? job.clip_ids : [];
+    const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
+
+    const { data: clips, error: clipsError } = await supabase
+      .from("clips")
+      .select("id, file_name, duration, storage_path")
+      .eq("user_id", userId)
+      .in("id", clipIds);
+
+    if (clipsError) {
+      return res.status(500).json({ error: clipsError.message });
     }
 
-    // Fetch clip details
-    const { data: clips } = await supabase
-      .from("clips")
-      .select("id, file_name, duration")
-      .in("id", job.clip_ids);
+    const orderedClips = orderByIds(clips || [], clipIds);
+    const originalUrls = await createSignedUrls(
+      "clips",
+      orderedClips.map((clip: any) => clip.storage_path),
+      3600
+    );
+    const outputUrls =
+      job.status === "complete" && outputPaths.length > 0
+        ? await createSignedUrls("outputs", outputPaths, 3600)
+        : [];
 
-    res.json({
+    return res.json({
       ...job,
-      clips: clips || [],
+      clips: orderedClips.map((clip: any, index: number) => ({
+        id: clip.id,
+        file_name: clip.file_name,
+        duration: clip.duration,
+        original_url: originalUrls[index] || null,
+        output_url: outputUrls[index] || null,
+      })),
       output_urls: outputUrls,
+      original_urls: originalUrls,
     });
-
   } catch (error: any) {
     console.error("Get job error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-/**
- * GET /api/jobs/:id/download - Download graded clips
- */
 router.get("/:id/download", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user.id;
 
-    // Fetch job
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .select("*")
@@ -157,72 +189,61 @@ router.get("/:id/download", requireAuth, async (req, res) => {
     }
 
     if (job.status !== "complete") {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Job not complete yet",
-        status: job.status 
+        status: job.status,
       });
     }
 
-    if (job.output_paths.length === 0) {
+    const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
+    if (outputPaths.length === 0) {
       return res.status(404).json({ error: "No output files available" });
     }
 
-    // Generate signed URLs with longer expiry for downloads
     const downloadUrls = await Promise.all(
-      job.output_paths.map(async (path: string, index: number) => {
-        const { data } = await supabase.storage
-          .from("outputs")
-          .createSignedUrl(path, 7200); // 2 hour expiry
-        
+      outputPaths.map(async (storagePath: string, index: number) => {
+        const { data } = await supabase.storage.from("outputs").createSignedUrl(storagePath, 7200);
         return {
           clip_index: index + 1,
           url: data?.signedUrl || "",
-          path: path,
+          path: storagePath,
         };
       })
     );
 
-    res.json({
+    return res.json({
       job_id: job.id,
       mood: job.mood,
       download_urls: downloadUrls,
       expires_in: "2 hours",
     });
-
   } catch (error: any) {
     console.error("Download job error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-/**
- * DELETE /api/jobs/:id - Delete a job (optional cleanup)
- */
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user.id;
 
-    // Verify ownership
-    const { data: job } = await supabase
+    const { data: job, error: jobError } = await supabase
       .from("jobs")
       .select("output_paths")
       .eq("id", id)
       .eq("user_id", userId)
       .single();
 
-    if (!job) {
+    if (jobError || !job) {
       return res.status(404).json({ error: "Job not found" });
     }
 
-    // Delete output files from storage
-    if (job.output_paths.length > 0) {
-      await supabase.storage
-        .from("outputs")
-        .remove(job.output_paths);
+    const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
+    if (outputPaths.length > 0) {
+      await supabase.storage.from("outputs").remove(outputPaths);
     }
 
-    // Delete job record
     const { error: deleteError } = await supabase
       .from("jobs")
       .delete()
@@ -230,14 +251,13 @@ router.delete("/:id", requireAuth, async (req, res) => {
       .eq("user_id", userId);
 
     if (deleteError) {
-      return res.status(500).json({ error: "Failed to delete job" });
+      return res.status(500).json({ error: deleteError.message });
     }
 
-    res.json({ message: "Job deleted successfully" });
-
+    return res.json({ message: "Job deleted successfully" });
   } catch (error: any) {
     console.error("Delete job error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
