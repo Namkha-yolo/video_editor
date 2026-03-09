@@ -1,30 +1,34 @@
 import Redis from "ioredis";
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+export const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
-export const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: true,
-    retryStrategy: (times) => {
-      // Stop retrying after 3 attempts
-      if (times > 3) {
-        console.warn("❌ Redis unavailable - running without job queue");
-        return null;
-      }
-      return Math.min(times * 50, 2000);
-    },
-});
+export const redisOptions = {
+  maxRetriesPerRequest: null,
+  lazyConnect: true,
+  retryStrategy: (times: number) => {
+    if (times > 3) {
+      console.warn("Redis unavailable - running without job queue");
+      return null;
+    }
 
-// Handle Redis connection errors gracefully
-redis.on('error', (error: any) => {
-  if (error.code === 'ECONNREFUSED') {
-    // Suppress ECONNREFUSED errors as they're expected when Redis isn't running
-  } else {
-    console.error('Redis error:', error.message);
-  }
-});
+    return Math.min(times * 50, 2000);
+  },
+};
 
-// Attempt to connect but don't crash if it fails
+export function createRedisConnection() {
+  const client = new Redis(redisUrl, redisOptions);
+
+  client.on("error", (error: any) => {
+    if (error?.code !== "ECONNREFUSED") {
+      console.error("Redis error:", error.message);
+    }
+  });
+
+  return client;
+}
+
+export const redis = createRedisConnection();
+
 redis.connect().catch(() => {
-  console.warn("⚠️  Redis not available - job queue disabled");
+  console.warn("Redis not available - job queue disabled");
 });
