@@ -152,15 +152,16 @@ def analyze_clip(file_path: str, clip_id: str = "") -> dict:
     if not clip_id:
         clip_id = str(uuid.uuid4())
 
-    path = Path(file_path)
-    if not path.is_file():
-        raise FileNotFoundError(f"Video file not found: {file_path}")
+    from utils.ffmpeg import validate_video
+
+    # Validate file integrity, format, and duration before processing
+    validate_video(file_path)
 
     logger.info("Analyzing clip %s: %s", clip_id, file_path)
 
-    cap = cv2.VideoCapture(str(path))
+    cap = cv2.VideoCapture(str(file_path))
     if not cap.isOpened():
-        raise ValueError(f"Failed to open video: {file_path}")
+        raise ValueError(f"Failed to open video with OpenCV: {file_path}")
 
     try:
         frames = _sample_frames(cap)

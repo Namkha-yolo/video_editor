@@ -8,7 +8,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from utils.ffmpeg import apply_filters
+from utils.ffmpeg import apply_filters, compute_ffmpeg_timeout, validate_video
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,12 @@ def grade_clip(file_path: str, filter_string: str) -> str:
         GradingError:      If FFmpeg fails or the output is missing/empty.
     """
     # --- validate inputs ---
-    if not Path(file_path).is_file():
-        raise FileNotFoundError(f"Video file not found: {file_path}")
-
     if not filter_string or not filter_string.strip():
         raise ValueError("filter_string must not be empty")
+
+    # Validate file integrity, format, and duration
+    metadata = validate_video(file_path)
+    timeout = compute_ffmpeg_timeout(metadata["duration"])
 
     # --- create output temp file ---
     tmp = tempfile.NamedTemporaryFile(
@@ -49,8 +50,11 @@ def grade_clip(file_path: str, filter_string: str) -> str:
     tmp.close()
 
     # --- apply filters ---
-    logger.info("Grading %s with filters: %s", file_path, filter_string)
-    success = apply_filters(file_path, output_path, filter_string)
+    logger.info(
+        "Grading %s (%.1fs video, timeout=%ds) with filters: %s",
+        file_path, metadata["duration"], timeout, filter_string,
+    )
+    success = apply_filters(file_path, output_path, filter_string, timeout=timeout)
 
     if not success:
         Path(output_path).unlink(missing_ok=True)

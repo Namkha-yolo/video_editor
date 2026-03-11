@@ -16,7 +16,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 FFPROBE_TIMEOUT = 30  # seconds
-FFMPEG_TIMEOUT = 120  # seconds
+FFMPEG_TIMEOUT_BASE = 120  # seconds — minimum for any clip
+FFMPEG_TIMEOUT_PER_MINUTE = 30  # extra seconds per minute of video
+FFMPEG_TIMEOUT_MAX = 600  # hard ceiling (10 minutes)
+MAX_VIDEO_DURATION = 600  # refuse videos longer than 10 minutes
 
 
 def probe(file_path: str) -> dict:
@@ -104,7 +107,56 @@ def probe(file_path: str) -> dict:
     return metadata
 
 
-def apply_filters(input_path: str, output_path: str, filter_string: str) -> bool:
+def validate_video(file_path: str) -> dict:
+    """Validate that a file is a processable video and return its metadata.
+
+    Checks:
+      - File exists and is non-empty
+      - FFprobe can read it (not corrupt / unsupported)
+      - Contains a video stream
+      - Duration is within MAX_VIDEO_DURATION
+
+    Returns:
+        Metadata dict from probe().
+
+    Raises:
+        FileNotFoundError: File missing.
+        ValueError: File is empty, corrupt, has no video stream, or exceeds duration limit.
+    """
+    path = Path(file_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Video file not found: {file_path}")
+
+    if path.stat().st_size == 0:
+        raise ValueError(f"Video file is empty (0 bytes): {file_path}")
+
+    try:
+        metadata = probe(file_path)
+    except RuntimeError as exc:
+        raise ValueError(f"Video file is corrupt or unsupported: {exc}")
+
+    if metadata["width"] == 0 or metadata["height"] == 0:
+        raise ValueError(f"Video has invalid dimensions: {metadata['width']}x{metadata['height']}")
+
+    duration = metadata["duration"]
+    if duration > MAX_VIDEO_DURATION:
+        raise ValueError(
+            f"Video is too long ({duration:.1f}s). Maximum allowed: {MAX_VIDEO_DURATION}s"
+        )
+
+    return metadata
+
+
+def compute_ffmpeg_timeout(duration: float) -> int:
+    """Compute a timeout for FFmpeg based on video duration.
+
+    Longer videos get proportionally more time to process.
+    """
+    timeout = FFMPEG_TIMEOUT_BASE + int(duration / 60) * FFMPEG_TIMEOUT_PER_MINUTE
+    return min(timeout, FFMPEG_TIMEOUT_MAX)
+
+
+def apply_filters(input_path: str, output_path: str, filter_string: str, timeout: int | None = None) -> bool:
     """Apply an FFmpeg video-filter chain and write the result to *output_path*.
 
     The audio stream is copied without re-encoding.
@@ -114,10 +166,13 @@ def apply_filters(input_path: str, output_path: str, filter_string: str) -> bool
         output_path:   Path for the filtered output file.
         filter_string: A valid FFmpeg ``-vf`` filter string, e.g.
                        ``"eq=brightness=0.1:saturation=1.3,vignette=PI/4"``.
+        timeout:       Optional timeout in seconds. If None, uses FFMPEG_TIMEOUT_BASE.
 
     Returns:
         True on success, False on failure.
     """
+    effective_timeout = timeout if timeout is not None else FFMPEG_TIMEOUT_BASE
+
     cmd = [
         "ffmpeg",
         "-y",
@@ -126,14 +181,14 @@ def apply_filters(input_path: str, output_path: str, filter_string: str) -> bool
         "-c:a", "copy",
         output_path,
     ]
-    logger.info("Running: %s", shlex.join(cmd))
+    logger.info("Running (timeout=%ds): %s", effective_timeout, shlex.join(cmd))
 
     try:
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=FFMPEG_TIMEOUT,
+            timeout=effective_timeout,
         )
     except FileNotFoundError:
         logger.error(
@@ -141,7 +196,7 @@ def apply_filters(input_path: str, output_path: str, filter_string: str) -> bool
         )
         return False
     except subprocess.TimeoutExpired:
-        logger.error("ffmpeg timed out after %ds on %s", FFMPEG_TIMEOUT, input_path)
+        logger.error("ffmpeg timed out after %ds on %s", effective_timeout, input_path)
         return False
 
     if result.returncode != 0:
