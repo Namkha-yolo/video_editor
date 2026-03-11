@@ -12,7 +12,7 @@ from starlette.background import BackgroundTask
 
 from services.analyzer import analyze_clip
 from services.grader import grade_clip, GradingError
-from utils.ffmpeg import probe
+from utils.ffmpeg import probe, validate_video
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,7 +27,8 @@ app.add_middleware(
 )
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
-DOWNLOAD_TIMEOUT = 120  # seconds
+DOWNLOAD_TIMEOUT = 300  # seconds — generous for large files
+MAX_DOWNLOAD_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
 # ---------------------------------------------------------------------------
@@ -71,10 +72,13 @@ class ProbeResponse(BaseModel):
 async def _download_to_temp(signed_url: str) -> str:
     """Download a video from a signed URL to a temp file.
 
+    Streams the download to handle large files without excessive memory use.
+    Enforces a MAX_DOWNLOAD_SIZE limit.
+
     Returns the path to the temp file. Caller owns cleanup.
 
     Raises:
-        HTTPException: If download fails or the file extension is unsupported.
+        HTTPException: If download fails, file is too large, or extension is unsupported.
     """
     parsed = urlparse(signed_url)
     ext = Path(parsed.path).suffix.lower()
@@ -84,25 +88,53 @@ async def _download_to_temp(signed_url: str) -> str:
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
+    tmp_path = None
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                signed_url, timeout=DOWNLOAD_TIMEOUT, follow_redirects=True
-            )
-            resp.raise_for_status()
+            async with client.stream(
+                "GET", signed_url, timeout=DOWNLOAD_TIMEOUT, follow_redirects=True
+            ) as resp:
+                resp.raise_for_status()
+
+                # Check Content-Length header if available
+                content_length = resp.headers.get("content-length")
+                if content_length and int(content_length) > MAX_DOWNLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File too large ({int(content_length)} bytes). Max: {MAX_DOWNLOAD_SIZE} bytes",
+                    )
+
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                    tmp_path = tmp.name
+                    downloaded = 0
+                    async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                        downloaded += len(chunk)
+                        if downloaded > MAX_DOWNLOAD_SIZE:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File too large (>{MAX_DOWNLOAD_SIZE} bytes). Download aborted.",
+                            )
+                        tmp.write(chunk)
+
     except httpx.HTTPStatusError as e:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(
             status_code=400,
             detail=f"Failed to download video: HTTP {e.response.status_code}",
         )
     except httpx.RequestError as e:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(
             status_code=400, detail=f"Failed to download video: {e}"
         )
+    except HTTPException:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+        raise
 
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp.write(resp.content)
-        return tmp.name
+    return tmp_path
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +153,8 @@ async def analyze(body: AnalyzeRequest):
     Accepts a Supabase signed URL, downloads the video, and returns a
     ClipAnalysis with brightness, contrast, dominant colors, and color
     temperature.
+
+    Validates the video file before processing (corrupt, empty, too long).
     """
     tmp_path = await _download_to_temp(body.signed_url)
 
@@ -130,6 +164,7 @@ async def analyze(body: AnalyzeRequest):
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
+        # Covers: corrupt file, no video stream, too long, no frames extracted
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.exception("Unexpected error analyzing clip")
@@ -173,6 +208,9 @@ async def grade(body: GradeRequest):
 
     Accepts a Supabase signed URL + FFmpeg filter string, downloads the video,
     applies the filters, and streams back the graded file.
+
+    Validates the video file before processing (corrupt, empty, too long).
+    Uses dynamic timeouts scaled to video duration.
     """
     if not body.filters or not body.filters.strip():
         raise HTTPException(status_code=400, detail="filters must not be empty")
@@ -191,6 +229,7 @@ async def grade(body: GradeRequest):
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
+        # Covers: corrupt file, empty filter, too long, invalid dimensions
         raise HTTPException(status_code=422, detail=str(e))
     except GradingError as e:
         raise HTTPException(status_code=500, detail=str(e))
