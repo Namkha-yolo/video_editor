@@ -20,10 +20,34 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  const [uploads] = useState<UploadItem[]>([]);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+
+  const uploadSingleFile = async (file: File) => {
+    const localId = crypto.randomUUID();
+
+    // initial and add new item in uplaod array
+    setUploads((prev) => [
+      {
+        localId,
+        file,
+        status: "queued", // waiting
+        progress: 0, // 0% in progress
+        error: null, // not error
+        thumbnailUrl: null, // not thumbnail
+      },
+      ...prev,
+    ]);
+  };
+
+  // the function after drag and drop
+  const onDrop = (acceptedFiles: File[]) => {
+    acceptedFiles.forEach((file) => {
+      void uploadSingleFile(file);
+    });
+  };
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    // onDrop,
+    onDrop,
     accept: {
       "video/mp4": [".mp4"],
       "video/quicktime": [".mov"],
