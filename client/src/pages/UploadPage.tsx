@@ -22,6 +22,19 @@ export default function UploadPage() {
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
+  // Function for updating item
+  // item parameter has been modified to a new UploadItem object
+  const updateUploadItem = (
+    localID: String,
+    updater: (item: UploadItem) => UploadItem,
+  ) => {
+    // setUploads(...): change the upload array to new values
+    // map: the function which make a new array looping through the original array
+    setUploads((prev) =>
+      prev.map((item) => (item.localId === localID ? updater(item) : item)),
+    );
+  };
+
   const uploadSingleFile = async (file: File) => {
     const localId = crypto.randomUUID();
 
