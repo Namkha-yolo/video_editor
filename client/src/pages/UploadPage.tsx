@@ -50,6 +50,39 @@ export default function UploadPage() {
       },
       ...prev,
     ]);
+
+    // [Errors] Check some error
+    // If there is not user
+    if (!user) {
+      updateUploadItem(localId, (item) => ({
+        // previous attribute
+        ...item,
+        status: "error",
+        error: "Login is required.",
+      }));
+      return;
+    }
+    // If the file is bigger than 500MB.
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      updateUploadItem(localId, (item) => ({
+        // previous attribute
+        ...item,
+        status: "error",
+        error: "Each file must be 500MB or less.",
+      }));
+      return;
+    }
+    // If another error
+    if (0) {
+    }
+
+    // [Upload] In progress for uploading
+    updateUploadItem(localId, (item) => ({
+      ...item,
+      status: "uploading",
+      progress: 5, // 5% in progress
+      error: null,
+    }));
   };
 
   // the function after drag and drop
