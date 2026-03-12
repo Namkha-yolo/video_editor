@@ -5,6 +5,8 @@ import { useAuthStore } from "@/store/authStore";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024;
+const ACCEPTED_EXTENSIONS = [".mp4", ".mov", ".webm"];
+const ACCEPTED_MIME_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 
 interface UploadItem {
   localId: string;
@@ -15,6 +17,19 @@ interface UploadItem {
   thumbnailUrl: string | null;
   clipId?: string;
 }
+
+// Check the file is acceptable.
+const isAcceptedVideoFile = (file: File) => {
+  const name = file.name.toLowerCase(); // file name
+  // compare extension name with Accepted extensions
+  const hasAcceptedExtension = ACCEPTED_EXTENSIONS.some((ext) =>
+    name.endsWith(ext),
+  );
+  // check whether it is real video.
+  const hasAcceptedMime =
+    file.type.length === 0 || ACCEPTED_MIME_TYPES.includes(file.type);
+  return hasAcceptedExtension && hasAcceptedMime;
+};
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -51,8 +66,8 @@ export default function UploadPage() {
       ...prev,
     ]);
 
-    // [Errors] Check some error
-    // If there is not user
+    // Check some error
+    // [Errors] If there is not user
     if (!user) {
       updateUploadItem(localId, (item) => ({
         // previous attribute
@@ -62,7 +77,7 @@ export default function UploadPage() {
       }));
       return;
     }
-    // If the file is bigger than 500MB.
+    // [Errors] If the file is bigger than 500MB.
     if (file.size > MAX_FILE_SIZE_BYTES) {
       updateUploadItem(localId, (item) => ({
         // previous attribute
@@ -72,11 +87,18 @@ export default function UploadPage() {
       }));
       return;
     }
-    // If another error
-    if (0) {
+    // [Errors] If the file is not a video
+    if (!isAcceptedVideoFile(file)) {
+      updateUploadItem(localId, (item) => ({
+        // previous attribute
+        ...item,
+        status: "error",
+        error: "Only mp4, mov, webm and real video are allowed.",
+      }));
+      return;
     }
 
-    // [Upload] In progress for uploading
+    // [Uploading] In progress for uploading
     updateUploadItem(localId, (item) => ({
       ...item,
       status: "uploading",
