@@ -1,6 +1,6 @@
 import "./config/env.js";
 
-import express from "express";
+import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { createServer } from "http";
@@ -10,8 +10,9 @@ import jobRoutes from "./routes/jobs.js";
 import moodRoutes from "./routes/moods.js";
 import clipRoutes from "./routes/clips.js";
 import { setJobEventEmitter } from "./services/jobEvents.js";
+import { getRateLimiterConfig } from "./services/rateLimiters.js";
 
-const app = express();
+const app: Express = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
   cors: { origin: "*" },
@@ -23,7 +24,7 @@ setJobEventEmitter((room, event, payload) => {
 
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/upload", uploadRoutes);
 app.use("/api/jobs", jobRoutes);
@@ -31,7 +32,10 @@ app.use("/api/moods", moodRoutes);
 app.use("/api/clips", clipRoutes);
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.json({
+    status: "ok",
+    rate_limits: getRateLimiterConfig(),
+  });
 });
 
 app.get("/", (_req, res) => {
@@ -45,6 +49,9 @@ app.get("/", (_req, res) => {
       upload: "/api/upload",
       clips: "/api/clips",
       jobs: "/api/jobs",
+    },
+    features: {
+      claude_rate_limiting: true,
     },
     documentation: "See README.md for full API documentation",
   });

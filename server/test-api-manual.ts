@@ -170,14 +170,25 @@ async function testCreateJob(
     }),
   });
 
+  const rateLimitLimit = response.headers.get("x-ratelimit-limit");
+  const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
+  const retryAfter = response.headers.get("retry-after");
   const data = await response.json();
 
   if (!response.ok) {
     logError(`Failed to create job: ${JSON.stringify(data, null, 2)}`);
+    if (response.status === 429) {
+      logInfo(
+        `Rate limit headers -> limit=${rateLimitLimit}, remaining=${rateLimitRemaining}, retry_after=${retryAfter}`
+      );
+    }
     throw new Error(`HTTP ${response.status}`);
   }
 
   logSuccess(`Job created successfully!`);
+  logInfo(
+    `Rate limit headers -> limit=${rateLimitLimit}, remaining=${rateLimitRemaining}, retry_after=${retryAfter}`
+  );
   console.log(JSON.stringify(data, null, 2));
 
   return data.jobId;

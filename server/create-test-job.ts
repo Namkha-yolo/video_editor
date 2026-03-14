@@ -77,6 +77,12 @@ async function createPersistentTestJob() {
     }),
   });
 
+  console.log(
+    `ℹ Rate limit headers: limit=${response.headers.get("x-ratelimit-limit")}, remaining=${response.headers.get(
+      "x-ratelimit-remaining"
+    )}, retry_after=${response.headers.get("retry-after")}`
+  );
+
   if (!response.ok) {
     console.log(`❌ Failed to create job: ${response.status} ${response.statusText}`);
     const errorData = await response.json().catch(() => ({}));
