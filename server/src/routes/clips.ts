@@ -1,8 +1,8 @@
-import { Router } from "express";
+import { Router, type Router as RouterType } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 
-const router = Router();
+const router: RouterType = Router();
 
 router.get("/", requireAuth, async (req, res) => {
   try {

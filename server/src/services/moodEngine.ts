@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Mood, MoodPreset } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
+import { reserveClaudeRateLimit } from "./rateLimiters.js";
 
 export const moodPresets: Record<Mood, MoodPreset> = {
   nostalgic: {
@@ -102,6 +103,19 @@ export interface ClipGradingResult {
   filters: string;
 }
 
+export interface GenerateGradingFiltersOptions {
+  requesterId?: string;
+  now?: () => number;
+  reserveClaudeCapacity?: (requesterId: string, now?: number) => unknown;
+  anthropicClient?: {
+    messages: {
+      create: (payload: Record<string, unknown>) => Promise<{
+        content: Array<{ type: string; text?: string }>;
+      }>;
+    };
+  };
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -168,13 +182,18 @@ Respond with ONLY a JSON array, no markdown, no explanation. Each element must h
 
 export async function generateGradingFilters(
   mood: Mood,
-  clips: ClipAnalysis[]
+  clips: ClipAnalysis[],
+  options: GenerateGradingFiltersOptions = {}
 ): Promise<ClipGradingResult[]> {
   if (clips.length === 0) {
     return [];
   }
 
-  const anthropic = getAnthropicClient();
+  const requesterId = options.requesterId || "anonymous";
+  const now = options.now?.() ?? Date.now();
+  (options.reserveClaudeCapacity || reserveClaudeRateLimit)(requesterId, now);
+
+  const anthropic = options.anthropicClient || getAnthropicClient();
   const prompt = buildPrompt(mood, clips);
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -187,7 +206,10 @@ export async function generateGradingFilters(
     throw new Error("Claude returned no text response");
   }
 
-  const rawText = textBlock.text.trim();
+  const rawText = (textBlock.text || "").trim();
+  if (!rawText) {
+    throw new Error("Claude returned an empty text response");
+  }
   const jsonText = rawText.replace(/^```json?\s*/, "").replace(/\s*```$/, "");
 
   let results: ClipGradingResult[];

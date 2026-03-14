@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import { processGradingJob } from "../src/services/videoProcessor.js";
 import { buildAdaptiveFallbackFilters } from "../src/services/moodEngine.js";
+import { ClaudeRateLimitError } from "../src/services/rateLimiters.js";
 import type { JobProgressEvent } from "../src/services/jobEvents.js";
 import { runSuite } from "./_harness.js";
 
@@ -195,6 +196,32 @@ export async function run() {
         assert.equal(gradeRequests.length, 2);
         assert.ok(gradeRequests.every((request) => /eq=brightness=/.test(request.body.filters)));
         assert.ok(progressEvents.some((event) => event.message?.includes("fallback grading filters")));
+      },
+    },
+    {
+      name: "processor falls back cleanly when Claude rate limit is hit",
+      run: async () => {
+        const { client } = createSupabaseMock();
+        const { fetchMock, requests } = createFetchMock();
+        const progressEvents: JobProgressEvent[] = [];
+
+        await processGradingJob("job-3", "hype", ["clip-1", "clip-2"], {
+          supabaseClient: client as any,
+          fetchImpl: fetchMock,
+          pipelineUrl: "http://pipeline.local",
+          emitProgress: (payload) => {
+            progressEvents.push(payload);
+          },
+          generateFilters: async () => {
+            throw new ClaudeRateLimitError("user", 45, 1, Date.now() + 45_000);
+          },
+          buildFallback: buildAdaptiveFallbackFilters,
+          now: () => "2026-03-09T12:00:00.000Z",
+        });
+
+        const gradeRequests = requests.filter((request) => request.url.endsWith("/grade"));
+        assert.equal(gradeRequests.length, 2);
+        assert.ok(progressEvents.some((event) => event.message?.includes("Retry after 45s")));
       },
     },
   ]);
