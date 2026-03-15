@@ -180,9 +180,9 @@ cp .env.example .env
 # Fill in your Supabase URL, keys, and Anthropic API key
 ```
 
-3. Start all services:
+3. Build and start all services:
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 4. Open the app:

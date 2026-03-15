@@ -1,60 +1,84 @@
-version: "3.9"
-
 services:
-  # --- Infrastructure ---
-
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
-
-  # --- Application ---
-
-  client:
-    build:
-      context: ./client
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./client/src:/app/src
-      - ./shared:/app/../shared
-    environment:
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-    depends_on:
-      - server
-
-  server:
-    build:
-      context: ./server
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./server/src:/app/src
-      - ./shared:/app/../shared
-    environment:
-      - NODE_ENV=development
-      - PORT=3001
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - REDIS_URL=redis://redis:6379
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AI_PIPELINE_URL=http://ai-pipeline:8000
-    depends_on:
-      - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   ai-pipeline:
     build:
       context: ./ai-pipeline
+      dockerfile: Dockerfile
+    environment:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
     ports:
       - "8000:8000"
-    volumes:
-      - ./ai-pipeline:/app
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
     environment:
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      NODE_ENV: production
+      PORT: 3001
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      REDIS_URL: redis://redis:6379
+      AI_PIPELINE_URL: http://ai-pipeline:8000
+    ports:
+      - "3001:3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-pipeline:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/health').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    ports:
+      - "5173:80"
+    depends_on:
+      server:
+        condition: service_healthy
 
 volumes:
   redis-data:
