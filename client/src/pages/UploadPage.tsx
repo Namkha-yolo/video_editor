@@ -36,13 +36,51 @@ const isAcceptedVideoFile = (file: File) => {
     file.type.length === 0 || ACCEPTED_MIME_TYPES.includes(file.type);
   return hasAcceptedExtension && hasAcceptedMime;
 };
-const getVideoPreviewData = (file: File): PreviewData => {
-  return {
-    thumbnailUrl: null,
-    duration: 0,
-    width: 0,
-    height: 0,
-  };
+const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
+  const previewUrl = URL.createObjectURL(file);
+
+  try {
+    // make a [video object]
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.src = previewUrl;
+
+    // await to load video => resolve or reject
+    await new Promise<void>((resolve, reject) => {
+      video.onloadeddata = () => resolve();
+      video.onerror = () => reject(new Error("Unable to load video"));
+    });
+
+    // make a [thumnail object]
+    let thumbnailUrl: string | null = null;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      // extract frame
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        thumbnailUrl = canvas.toDataURL("image/jpeg", 1.0);
+      }
+    } catch {
+      thumbnailUrl = null;
+    }
+
+    return {
+      thumbnailUrl,
+      duration: 0,
+      width: video.videoWidth,
+      height: video.videoHeight,
+    };
+  } catch {
+    return {
+      thumbnailUrl: null,
+      duration: 0,
+      width: 0,
+      height: 0,
+    };
+  }
 };
 
 export default function UploadPage() {
@@ -120,10 +158,16 @@ export default function UploadPage() {
       error: null,
     }));
 
-    // Extract preview DATA
-    const preview = await getVideoPreviewData(file);
-
-    // update extracted DATA to item
+    try {
+      // Extract preview DATA
+      const preview = await getVideoPreviewData(file);
+      // update extracted DATA to item
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        thumbnailUrl: preview.thumbnailUrl,
+        progress: 20,
+      }));
+    } catch (error) {}
   };
 
   // the function after drag and drop
@@ -187,7 +231,7 @@ export default function UploadPage() {
                   <div className="upload-page__thumb-shell">
                     <img
                       className="upload-page__thumb-image"
-                      src={item.thumbnailUrl!}
+                      src={item.thumbnailUrl}
                       alt={`${item.file.name} thumbnail`}
                     />
                   </div>
