@@ -17,6 +17,12 @@ interface UploadItem {
   thumbnailUrl: string | null;
   clipId?: string;
 }
+interface PreviewData {
+  thumbnailUrl: string | null;
+  duration: number;
+  width: number;
+  height: number;
+}
 
 // Check the file is acceptable.
 const isAcceptedVideoFile = (file: File) => {
@@ -29,6 +35,14 @@ const isAcceptedVideoFile = (file: File) => {
   const hasAcceptedMime =
     file.type.length === 0 || ACCEPTED_MIME_TYPES.includes(file.type);
   return hasAcceptedExtension && hasAcceptedMime;
+};
+const getVideoPreviewData = (file: File): PreviewData => {
+  return {
+    thumbnailUrl: null,
+    duration: 0,
+    width: 0,
+    height: 0,
+  };
 };
 
 export default function UploadPage() {
@@ -105,6 +119,11 @@ export default function UploadPage() {
       progress: 5, // 5% in progress
       error: null,
     }));
+
+    // Extract preview DATA
+    const preview = await getVideoPreviewData(file);
+
+    // update extracted DATA to item
   };
 
   // the function after drag and drop
