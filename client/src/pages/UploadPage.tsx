@@ -269,7 +269,7 @@ export default function UploadPage() {
                           {item.file.name}
                         </p>
                         <p className="upload-page__item-size">
-                          {item.file.size / (1024 * 1024)} MB • Ready
+                          {item.file.size / (1024 * 1024)} MB • {item.status}
                         </p>
                       </div>
                     </div>
