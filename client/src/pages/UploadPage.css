@@ -216,6 +216,67 @@
   cursor: not-allowed;
 }
 
+/* ── Light mode ── */
+.layout--light .upload-page__title {
+  color: #111827;
+}
+
+.layout--light .upload-page__subtitle {
+  color: #6b7280;
+}
+
+.layout--light .upload-page__dropzone {
+  border-color: #d1d5db;
+  background: rgba(249, 250, 251, 0.8);
+}
+
+.layout--light .upload-page__dropzone-text {
+  color: #374151;
+}
+
+.layout--light .upload-page__list-panel {
+  border-color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.layout--light .upload-page__list-title {
+  color: #111827;
+}
+
+.layout--light .upload-page__list-empty {
+  color: #9ca3af;
+}
+
+.layout--light .upload-page__item {
+  border-color: #e5e7eb;
+  background: #ffffff;
+}
+
+.layout--light .upload-page__item-name {
+  color: #111827;
+}
+
+.layout--light .upload-page__item-size {
+  color: #6b7280;
+}
+
+.layout--light .upload-page__thumb-shell {
+  background: #e5e7eb;
+}
+
+.layout--light .upload-page__progress-track {
+  background: #e5e7eb;
+}
+
+.layout--light .upload-page__footer-text {
+  color: #6b7280;
+}
+
+.layout--light .upload-page__next-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+}
+
 @media (max-width: 768px) {
   .upload-page__footer {
     flex-direction: column;
