@@ -1,4 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import "./Layout.css";
@@ -13,12 +15,20 @@ export default function Layout() {
   const user = useAuthStore((s) => s.user);
   const avatarLabel = user?.email?.[0]?.toUpperCase() ?? "U";
 
+  const [theme, setTheme] = useState<"dark" | "light">(
+    () => (localStorage.getItem("theme") as "dark" | "light") ?? "dark"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <div className="layout">
+    <div className={`layout${theme === "light" ? " layout--light" : ""}`}>
       <header className="layout__header">
         <div className="layout__header-inner">
           <Link to="/dashboard" className="layout__brand">
@@ -30,6 +40,14 @@ export default function Layout() {
             <span className="layout__brand-text">ClipVibe</span>
           </Link>
           <div className="layout__user">
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="layout__theme-toggle"
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}

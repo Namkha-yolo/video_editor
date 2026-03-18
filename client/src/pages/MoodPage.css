@@ -1,0 +1,225 @@
+.mood-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 48px 24px;
+}
+
+.mood-page-header {
+  text-align: center;
+}
+
+.mood-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #f9fafb;
+  margin: 0 0 8px;
+}
+
+.mood-page-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 6-card grid */
+.mood-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 680px;
+}
+
+@media (max-width: 600px) {
+  .mood-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.mood-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: #111827;
+  border: 2px solid #1f2937;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  text-align: center;
+}
+
+.mood-card:hover {
+  border-color: #374151;
+  transform: translateY(-2px);
+}
+
+.mood-card--selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.mood-card-icon {
+  font-size: 32px;
+}
+
+.mood-card-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.mood-card-desc {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Search filter */
+.mood-search {
+  width: 100%;
+  max-width: 680px;
+  padding: 10px 14px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  color: #f9fafb;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.mood-search::placeholder {
+  color: #4b5563;
+}
+
+.mood-search:focus {
+  border-color: #3b82f6;
+}
+
+/* Tooltip wrapper */
+.mood-card-wrapper {
+  position: relative;
+  display: flex;
+}
+
+.mood-card-wrapper .mood-card {
+  width: 100%;
+}
+
+.mood-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  width: 200px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #d1d5db;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 10;
+}
+
+.mood-card-wrapper:hover .mood-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* No results */
+.mood-no-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #4b5563;
+  font-size: 14px;
+  margin: 0;
+  padding: 24px 0;
+}
+
+/* Error */
+.mood-page-error {
+  font-size: 13px;
+  color: #f87171;
+  margin: 0;
+}
+
+/* Start button */
+.mood-start-btn {
+  padding: 12px 40px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.mood-start-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.mood-start-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Light mode ── */
+.layout--light .mood-page-title {
+  color: #111827;
+}
+
+.layout--light .mood-card {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.layout--light .mood-card:hover {
+  border-color: #d1d5db;
+}
+
+.layout--light .mood-card--selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.layout--light .mood-card-label {
+  color: #111827;
+}
+
+.layout--light .mood-card-desc {
+  color: #6b7280;
+}
+
+.layout--light .mood-search {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.layout--light .mood-search::placeholder {
+  color: #9ca3af;
+}
+
+.layout--light .mood-search:focus {
+  border-color: #2563eb;
+}
+
+.layout--light .mood-tooltip {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #374151;
+}
+
+.layout--light .mood-no-results {
+  color: #9ca3af;
+}

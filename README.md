@@ -244,6 +244,7 @@ Member 1 - Suhyeon yoo
 Member 2 - XinBao Chen
 Member 3 - Namkha Oedzer
 Member 4 - Jianhua Deng
+Member 5 - Khadim Thiam 
 
 
 
