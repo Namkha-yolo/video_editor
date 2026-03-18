@@ -103,6 +103,9 @@ export default function UploadPage() {
     );
   };
 
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+
   const uploadSingleFile = async (file: File) => {
     const localId = crypto.randomUUID();
 
@@ -184,7 +187,7 @@ export default function UploadPage() {
         .from("clips")
         .upload(storagePath, file, { upsert: false });
 
-      // if upload is success, increase progress    =>> 50%
+      // if upload is success, increase progress    =>> 90%
       console.log(result); // For Debug
       if (result.error) {
         throw new Error(result.error.message);
@@ -193,7 +196,15 @@ export default function UploadPage() {
           ...item,
           progress: 90,
         }));
+        await sleep(500);
       }
+
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        status: "success",
+        progress: 100,
+        error: null,
+      }));
     } catch (error) {}
   };
 
