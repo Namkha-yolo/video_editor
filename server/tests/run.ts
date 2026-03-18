@@ -14,6 +14,16 @@ async function main() {
 
   console.log(`\nSummary: ${passed} passed, ${failed} failed`);
 
+  const [{ shutdownJobQueue }, { redis }] = await Promise.all([
+    import("../src/services/jobQueue.js"),
+    import("../src/config/redis.js"),
+  ]);
+
+  await shutdownJobQueue();
+  await redis.quit().catch(() => {
+    redis.disconnect();
+  });
+
   if (failed > 0) {
     process.exit(1);
   }

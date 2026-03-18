@@ -180,9 +180,9 @@ cp .env.example .env
 # Fill in your Supabase URL, keys, and Anthropic API key
 ```
 
-3. Start all services:
+3. Build and start all services:
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 4. Open the app:
@@ -499,23 +499,27 @@ Member 3 (AI/ML)
 - Namkha Oedzer (3): `ffmpeg.py` wrappers + `analyzer.py` (test with sample clips)
 - XinBao Chen (2): `moods.ts` presets + `upload.ts` route
 - Suhyeon yoo (1): `LoginPage` + `Layout` + auth flow
+- Khadim Thiam - market research
 
 **Week 2 — Core features (parallel)**
 - Namkha Oedzer (3): `grader.py` (FFmpeg color grading)
 - XinBao Chen  (2): `moodEngine.ts` (Claude API) + `jobQueue.ts` (BullMQ worker)
 - Suhyeon yoo (1): `UploadPage` + `MoodPage`
 - Jianhua Deng (4): Finalize shared types + test Docker setup end-to-end
+- Khadim Thiam - product research
 
 **Week 3 — Integration & output (connect everything)**
 - XinBao Chen  (2): `videoProcessor.ts` + `jobs.ts` routes fully working + WebSocket events
 - Suhyeon yoo (1): `ProcessingPage` + `ExportPage` + `DashboardPage`
 - Namkha Oedzer (3): Edge cases (corrupt files, long videos, timeout handling)
 - Jianhua Deng (4): Deploy staging to Render, test full flow
+- Khadim Thiam (1): confused role?
 
 **Week 4 — Polish**
 - All: Error handling, loading states, mobile responsiveness
 - XinBao Chen  (2): Rate limiting, input sanitization
 - Jianhua Deng (4): Cleanup cron for expired files, monitoring
+- Khadim Thiam (1) - New Files `client/src/pages/MoodPage.css` Modified files `client/src/pages/MoodPage.tsx` — replaced the empty  stub with the full implementation   
 - All: Testing, bug fixes, demo prep
 
 ## Processing Pipeline

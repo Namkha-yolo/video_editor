@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 import { enqueueGradingJob } from "../services/jobQueue.js";
+import { buildRateLimitHeaders, consumeJobCreationRateLimit } from "../services/rateLimiters.js";
 
 const router: RouterType = Router();
 
@@ -44,6 +45,17 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const user = (req as any).user;
+    const rateLimit = consumeJobCreationRateLimit(user.id);
+    res.set(buildRateLimitHeaders(rateLimit));
+
+    if (!rateLimit.allowed) {
+      return res.status(429).json({
+        error: "Too many grading jobs started. Please wait before creating another job.",
+        code: "JOB_RATE_LIMITED",
+        retry_after_seconds: rateLimit.retryAfterSeconds,
+      });
+    }
+
     const clipIds = normaliseClipIds(parsedBody.data.clip_ids);
 
     const { data: clips, error: clipsError } = await supabase

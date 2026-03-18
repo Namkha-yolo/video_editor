@@ -7,7 +7,7 @@ import { supabase } from "../config/supabase.js";
 const router: RouterType = Router();
 
 const ALLOWED_MIMES = ["video/mp4", "video/quicktime", "video/webm"];
-const MAX_FILE_SIZE = 500 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // Supabase's storage limit is 50mb per file
 
 const upload = multer({
   storage: multer.memoryStorage(),

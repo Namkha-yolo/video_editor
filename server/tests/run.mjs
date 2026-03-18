@@ -28,7 +28,9 @@ async function main() {
   ]);
 
   await shutdownJobQueue();
-  await redis.quit();
+  await redis.quit().catch(() => {
+    redis.disconnect();
+  });
 
   console.log(`\nSummary: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);

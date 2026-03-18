@@ -5,6 +5,7 @@ import {
   generateGradingFilters,
   type ClipGradingResult,
 } from "./moodEngine.js";
+import { ClaudeRateLimitError } from "./rateLimiters.js";
 import type { Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 
@@ -158,11 +159,14 @@ function mergeGradingResults(
 async function resolveGradingResults(
   mood: Mood,
   analyses: ClipAnalysis[],
+  requesterId: string,
   dependencies: VideoProcessorDependencies,
   jobId: string
 ) {
   try {
-    const generatedResults = await dependencies.generateFilters(mood, analyses);
+    const generatedResults = await dependencies.generateFilters(mood, analyses, {
+      requesterId,
+    });
     return mergeGradingResults(mood, analyses, generatedResults, dependencies.buildFallback);
   } catch (error: any) {
     const fallbackResults = analyses.map((analysis) => ({
@@ -170,11 +174,16 @@ async function resolveGradingResults(
       filters: dependencies.buildFallback(mood, analysis),
     }));
 
+    const message =
+      error instanceof ClaudeRateLimitError
+        ? `Claude rate limit reached, using fallback grading filters. Retry after ${error.retryAfterSeconds}s.`
+        : `Claude unavailable, using fallback grading filters: ${error.message}`;
+
     dependencies.emitProgress({
       job_id: jobId,
       status: "analyzing",
       total_clips: analyses.length,
-      message: `Claude unavailable, using fallback grading filters: ${error.message}`,
+      message,
     });
 
     return fallbackResults;
@@ -278,7 +287,13 @@ export async function processGradingJob(
       analyses = createFallbackAnalyses(orderedClips);
     }
 
-    const gradingResults = await resolveGradingResults(mood, analyses, dependencies, jobId);
+    const gradingResults = await resolveGradingResults(
+      mood,
+      analyses,
+      orderedClips[0]?.user_id || jobId,
+      dependencies,
+      jobId
+    );
     const filtersByClipId = new Map(gradingResults.map((result) => [result.clip_id, result.filters]));
 
     await dependencies.supabaseClient
