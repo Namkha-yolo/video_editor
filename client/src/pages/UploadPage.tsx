@@ -171,8 +171,14 @@ export default function UploadPage() {
       }));
 
       // [upload]
+      // Time format
+      const timeformat = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", "_")
+        .replace(/:/g, "-");
       // set the path for storage
-      storagePath = `${user.id}/${Date.now()}-${file.name}`;
+      storagePath = `${user.id}/${timeformat}-${file.name}`;
       // upload video to supabase
       const result = await supabase.storage
         .from("clips")
@@ -185,7 +191,7 @@ export default function UploadPage() {
       } else {
         updateUploadItem(localId, (item) => ({
           ...item,
-          progress: 50,
+          progress: 90,
         }));
       }
     } catch (error) {}
