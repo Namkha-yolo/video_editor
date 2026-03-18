@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
+import { supabase } from "@/lib/supabase";
 import "./UploadPage.css";
 
-const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = [".mp4", ".mov", ".webm"];
 const ACCEPTED_MIME_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 
@@ -150,7 +151,7 @@ export default function UploadPage() {
       return;
     }
 
-    // [Uploading] In progress for uploading
+    // [Ready to uploading]
     updateUploadItem(localId, (item) => ({
       ...item,
       status: "uploading",
@@ -158,15 +159,35 @@ export default function UploadPage() {
       error: null,
     }));
 
+    let storagePath = "";
     try {
-      // Extract preview DATA
+      // [Extract preview DATA]
       const preview = await getVideoPreviewData(file);
-      // update extracted DATA to item
+      // update extracted DATA to item    =>> 20%
       updateUploadItem(localId, (item) => ({
         ...item,
         thumbnailUrl: preview.thumbnailUrl,
         progress: 20,
       }));
+
+      // [upload]
+      // set the path for storage
+      storagePath = `${user.id}/${Date.now()}-${file.name}`;
+      // upload video to supabase
+      const result = await supabase.storage
+        .from("clips")
+        .upload(storagePath, file, { upsert: false });
+
+      // if upload is success, increase progress    =>> 50%
+      console.log(result); // For Debug
+      if (result.error) {
+        throw new Error(result.error.message);
+      } else {
+        updateUploadItem(localId, (item) => ({
+          ...item,
+          progress: 50,
+        }));
+      }
     } catch (error) {}
   };
 
@@ -195,7 +216,7 @@ export default function UploadPage() {
       <div className="upload-page__header">
         <h1 className="upload-page__title">Upload your Clips</h1>
         <p className="upload-page__subtitle">
-          mp4, mov, webm only. Max 500MB per clip.
+          mp4, mov, webm only. Max 50MB per clip.
         </p>
       </div>
       <div
