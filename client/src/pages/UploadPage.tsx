@@ -205,7 +205,14 @@ export default function UploadPage() {
         progress: 100,
         error: null,
       }));
-    } catch (error) {}
+    } catch (error) {
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        status: "error",
+        progress: 0,
+        error: "Upload failed",
+      }));
+    }
   };
 
   // the function after drag and drop
