@@ -135,13 +135,13 @@ export default function UploadPage() {
       }));
       return;
     }
-    // [Errors] If the file is bigger than 500MB.
+    // [Errors] If the file is bigger than 50MB.
     if (file.size > MAX_FILE_SIZE_BYTES) {
       updateUploadItem(localId, (item) => ({
         // previous attribute
         ...item,
         status: "error",
-        error: "Each file must be 500MB or less.",
+        error: "Each file must be 50MB or less.",
       }));
       return;
     }
@@ -178,20 +178,24 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append("files", file);
 
-      await sleep(100);
+      await sleep(50);
       updateUploadItem(localId, (item) => ({
         ...item,
         progress: 40,
       }));
-      await sleep(200);
+      await sleep(50);
 
-      // [call server's API]    =>> 90%
+      // [call server's API]    =>> 50%
       // {
       //   clips: [
       //     { ...clip1 },
       //     { ...clip2 }
       //   ]
       // }
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 50,
+      }));
       const response = await api.post<{ clips: Clip[] }>(
         "/upload",
         formData,
@@ -202,13 +206,15 @@ export default function UploadPage() {
       if (!clip) {
         throw new Error("Upload completed without clip data");
       }
-
+      await sleep(100);
+      // complete upload     =>> 80%
       updateUploadItem(localId, (item) => ({
         ...item,
-        progress: 90,
+        progress: 80,
       }));
-      await sleep(500);
 
+      // pending 1 second
+      await sleep(100);
       updateUploadItem(localId, (item) => ({
         ...item,
         status: "success",
