@@ -276,7 +276,7 @@ export default function UploadPage() {
                   <div className="upload-page__thumb-shell">
                     <img
                       className="upload-page__thumb-image"
-                      src={item.thumbnailUrl}
+                      src={item.thumbnailUrl ?? undefined}
                       alt={`${item.file.name} thumbnail`}
                     />
                   </div>
