@@ -3,6 +3,8 @@ import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { supabase } from "@/lib/supabase";
+import api from "@/lib/api";
+import type { Clip } from "@clipvibe/shared";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -93,7 +95,7 @@ export default function UploadPage() {
   // Function for updating item
   // item parameter has been modified to a new UploadItem object
   const updateUploadItem = (
-    localID: String,
+    localID: string,
     updater: (item: UploadItem) => UploadItem,
   ) => {
     // setUploads(...): change the upload array to new values
@@ -162,7 +164,6 @@ export default function UploadPage() {
       error: null,
     }));
 
-    let storagePath = "";
     try {
       // [Extract preview DATA]
       const preview = await getVideoPreviewData(file);
@@ -173,44 +174,56 @@ export default function UploadPage() {
         progress: 20,
       }));
 
-      // [upload]
-      // Time format
-      const timeformat = new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace("T", "_")
-        .replace(/:/g, "-");
-      // set the path for storage
-      storagePath = `${user.id}/${timeformat}-${file.name}`;
-      // upload video to supabase
-      const result = await supabase.storage
-        .from("clips")
-        .upload(storagePath, file, { upsert: false });
+      // Declare variable for uploading clips   =>> 40%
+      const formData = new FormData();
+      formData.append("files", file);
 
-      // if upload is success, increase progress    =>> 90%
-      console.log(result); // For Debug
-      if (result.error) {
-        throw new Error(result.error.message);
-      } else {
-        updateUploadItem(localId, (item) => ({
-          ...item,
-          progress: 90,
-        }));
-        await sleep(500);
+      await sleep(100);
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 40,
+      }));
+      await sleep(200);
+
+      // [call server's API]    =>> 90%
+      // {
+      //   clips: [
+      //     { ...clip1 },
+      //     { ...clip2 }
+      //   ]
+      // }
+      const response = await api.post<{ clips: Clip[] }>(
+        "/upload",
+        formData,
+        {},
+      );
+
+      const clip = response.data.clips[0];
+      if (!clip) {
+        throw new Error("Upload completed without clip data");
       }
+
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 90,
+      }));
+      await sleep(500);
 
       updateUploadItem(localId, (item) => ({
         ...item,
         status: "success",
         progress: 100,
         error: null,
+        clipId: clip.id,
       }));
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+
       updateUploadItem(localId, (item) => ({
         ...item,
         status: "error",
         progress: 0,
-        error: "Upload failed",
+        error: message,
       }));
     }
   };
