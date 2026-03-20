@@ -3,6 +3,8 @@ import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { supabase } from "@/lib/supabase";
+import api from "@/lib/api";
+import type { Clip } from "@clipvibe/shared";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -93,7 +95,7 @@ export default function UploadPage() {
   // Function for updating item
   // item parameter has been modified to a new UploadItem object
   const updateUploadItem = (
-    localID: String,
+    localID: string,
     updater: (item: UploadItem) => UploadItem,
   ) => {
     // setUploads(...): change the upload array to new values
@@ -133,13 +135,13 @@ export default function UploadPage() {
       }));
       return;
     }
-    // [Errors] If the file is bigger than 500MB.
+    // [Errors] If the file is bigger than 50MB.
     if (file.size > MAX_FILE_SIZE_BYTES) {
       updateUploadItem(localId, (item) => ({
         // previous attribute
         ...item,
         status: "error",
-        error: "Each file must be 500MB or less.",
+        error: "Each file must be 50MB or less.",
       }));
       return;
     }
@@ -162,7 +164,6 @@ export default function UploadPage() {
       error: null,
     }));
 
-    let storagePath = "";
     try {
       // [Extract preview DATA]
       const preview = await getVideoPreviewData(file);
@@ -173,44 +174,62 @@ export default function UploadPage() {
         progress: 20,
       }));
 
-      // [upload]
-      // Time format
-      const timeformat = new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace("T", "_")
-        .replace(/:/g, "-");
-      // set the path for storage
-      storagePath = `${user.id}/${timeformat}-${file.name}`;
-      // upload video to supabase
-      const result = await supabase.storage
-        .from("clips")
-        .upload(storagePath, file, { upsert: false });
+      // Declare variable for uploading clips   =>> 40%
+      const formData = new FormData();
+      formData.append("files", file);
 
-      // if upload is success, increase progress    =>> 90%
-      console.log(result); // For Debug
-      if (result.error) {
-        throw new Error(result.error.message);
-      } else {
-        updateUploadItem(localId, (item) => ({
-          ...item,
-          progress: 90,
-        }));
-        await sleep(500);
+      await sleep(50);
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 40,
+      }));
+      await sleep(50);
+
+      // [call server's API]    =>> 50%
+      // {
+      //   clips: [
+      //     { ...clip1 },
+      //     { ...clip2 }
+      //   ]
+      // }
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 50,
+      }));
+      const response = await api.post<{ clips: Clip[] }>(
+        "/upload",
+        formData,
+        {},
+      );
+
+      const clip = response.data.clips[0];
+      if (!clip) {
+        throw new Error("Upload completed without clip data");
       }
+      await sleep(100);
+      // complete upload     =>> 80%
+      updateUploadItem(localId, (item) => ({
+        ...item,
+        progress: 80,
+      }));
 
+      // pending 1 second
+      await sleep(100);
       updateUploadItem(localId, (item) => ({
         ...item,
         status: "success",
         progress: 100,
         error: null,
+        clipId: clip.id,
       }));
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+
       updateUploadItem(localId, (item) => ({
         ...item,
         status: "error",
         progress: 0,
-        error: "Upload failed",
+        error: message,
       }));
     }
   };
@@ -276,7 +295,7 @@ export default function UploadPage() {
                   <div className="upload-page__thumb-shell">
                     <img
                       className="upload-page__thumb-image"
-                      src={item.thumbnailUrl}
+                      src={item.thumbnailUrl ?? undefined}
                       alt={`${item.file.name} thumbnail`}
                     />
                   </div>
@@ -287,7 +306,8 @@ export default function UploadPage() {
                           {item.file.name}
                         </p>
                         <p className="upload-page__item-size">
-                          {item.file.size / (1024 * 1024)} MB • {item.status}
+                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB •{" "}
+                          {item.status}
                         </p>
                       </div>
                     </div>
