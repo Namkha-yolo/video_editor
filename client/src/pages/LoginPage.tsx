@@ -4,13 +4,14 @@ import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
 export default function LoginPage() {
+  const [isEmailLogin, setIsEmailLogin] = useState(false);
   // TODO: Google + GitHub OAuth buttons via Supabase Auth
   const [loadingProvider, setLoadingProvider] = useState<
-    "google" | "github" | null
+    "google" | "github" | "email" | null
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleOAuthSignIn = async (provider: "google" | "github") => {
+  const handleOAuthSignIn = async (provider: "google" | "github" | "email") => {
     setErrorMessage(null);
     setLoadingProvider(provider);
 
@@ -66,40 +67,64 @@ export default function LoginPage() {
         </section>
 
         <section className="login-card">
-          <div className="login-card-header">
-            <p className="login-card-eyebrow">Welcome back</p>
-            <h2 className="login-card-title">Sign in to ClipVibe</h2>
-          </div>
+          {isEmailLogin ? (
+            <div>
+              <button
+                type="button"
+                className="login-action-button"
+                onClick={(e) => setIsEmailLogin(!isEmailLogin)}
+              >
+                Back to select
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="login-card-header">
+                <p className="login-card-eyebrow">Welcome back</p>
+                <h2 className="login-card-title">Sign in to ClipVibe</h2>
+              </div>
 
-          <div className="login-actions">
-            <button
-              type="button"
-              className="login-action-button"
-              onClick={() => void handleOAuthSignIn("google")}
-              disabled={loadingProvider !== null}
-            >
-              <Sparkles size={18} />
-              {loadingProvider === "google"
-                ? "Connecting..."
-                : "Continue with Google"}
-            </button>
-            <button
-              type="button"
-              className="login-action-button"
-              onClick={() => void handleOAuthSignIn("github")}
-              disabled={loadingProvider !== null}
-            >
-              <Github size={18} />
-              {loadingProvider === "github"
-                ? "Connecting..."
-                : "Continue with GitHub"}
-            </button>
-          </div>
+              <div className="login-actions">
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={() => void handleOAuthSignIn("google")}
+                  disabled={loadingProvider !== null}
+                >
+                  <Sparkles size={18} />
+                  {loadingProvider === "google"
+                    ? "Connecting..."
+                    : "Continue with Google"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={() => void handleOAuthSignIn("github")}
+                  disabled={loadingProvider !== null}
+                >
+                  <Github size={18} />
+                  {loadingProvider === "github"
+                    ? "Connecting..."
+                    : "Continue with GitHub"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
+                  disabled={loadingProvider !== null}
+                >
+                  {loadingProvider === "email"
+                    ? "Connecting..."
+                    : "✉️ Continue with Email"}
+                </button>
+              </div>
 
-          <p className="login-text">
-            {errorMessage ??
-              "Use Google or GitHub to sign in and continue to your dashboard."}
-          </p>
+              <p className="login-text">
+                {errorMessage ??
+                  "Use Google or GitHub to sign in and continue to your dashboard."}
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </div>
