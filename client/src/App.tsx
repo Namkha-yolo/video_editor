@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LoginPage from "@/pages/LoginPage";
+import SignupPage from "@/pages/SignupPage";
 import DashboardPage from "@/pages/DashboardPage";
 import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
@@ -49,6 +50,14 @@ export default function App() {
         element={
           <PublicOnlyRoute>
             <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnlyRoute>
+            <SignupPage />
           </PublicOnlyRoute>
         }
       />

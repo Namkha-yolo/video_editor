@@ -119,7 +119,14 @@ export default function LoginPage() {
                 required
               />
               <div className="login-actions">
-                <p className="create-btn">Create new account</p>
+                <p
+                  className="create-btn"
+                  onClick={() =>
+                    window.open("/signup", "_blank", "width=500,height=700")
+                  }
+                >
+                  Create new account
+                </p>
                 <button
                   type="submit"
                   className="login-action-button"
