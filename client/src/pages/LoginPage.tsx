@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Film, Github, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
 export default function LoginPage() {
   const [isEmailLogin, setIsEmailLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   // TODO: Google + GitHub OAuth buttons via Supabase Auth
   const [loadingProvider, setLoadingProvider] = useState<
     "google" | "github" | "email" | null
@@ -15,17 +17,44 @@ export default function LoginPage() {
     setErrorMessage(null);
     setLoadingProvider(provider);
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
+    if (provider === "email") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setErrorMessage(error.message);
+        setLoadingProvider(null);
+        return;
+      }
 
-    if (error) {
-      setErrorMessage(error.message);
-      setLoadingProvider(null);
+      return;
+    } else {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) {
+        setErrorMessage(error.message);
+        setLoadingProvider(null);
+      }
     }
+  };
+
+  // Sign-in form Submit
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    // prevent collison with previous log
+    e.preventDefault();
+
+    // check filled out
+    if (!email || !password) {
+      alert("Please fill out all fields.");
+      return;
+    }
+
+    await handleOAuthSignIn("email");
   };
 
   return (
@@ -68,15 +97,45 @@ export default function LoginPage() {
 
         <section className="login-card">
           {isEmailLogin ? (
-            <div>
-              <button
-                type="button"
-                className="login-action-button"
-                onClick={(e) => setIsEmailLogin(!isEmailLogin)}
-              >
-                Back to select
-              </button>
-            </div>
+            <form className="email-form" onSubmit={handleSubmit}>
+              <p className="login-card-eyebrow">Welcome back</p>
+              <h2 className="login-card-title">Login with Email </h2>
+
+              <label>Email</label>
+              <input
+                type="email"
+                placeholder="address@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+
+              <label>Password</label>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <div className="login-actions">
+                <p className="create-btn">Create new account</p>
+                <button
+                  type="submit"
+                  className="login-action-button"
+                  disabled={loadingProvider !== null}
+                >
+                  {loadingProvider === "email" ? "Connecting..." : "Log-in"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
+                >
+                  Back to select
+                </button>
+              </div>
+            </form>
           ) : (
             <div>
               <div className="login-card-header">
@@ -113,15 +172,13 @@ export default function LoginPage() {
                   onClick={(e) => setIsEmailLogin(!isEmailLogin)}
                   disabled={loadingProvider !== null}
                 >
-                  {loadingProvider === "email"
-                    ? "Connecting..."
-                    : "✉️ Continue with Email"}
+                  ✉️ Continue with Email
                 </button>
               </div>
 
               <p className="login-text">
                 {errorMessage ??
-                  "Use Google or GitHub to sign in and continue to your dashboard."}
+                  "Use Google, GitHub, or Email to sign in and continue to your dashboard."}
               </p>
             </div>
           )}
