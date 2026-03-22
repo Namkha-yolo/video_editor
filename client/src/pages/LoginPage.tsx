@@ -7,7 +7,6 @@ export default function LoginPage() {
   const [isEmailLogin, setIsEmailLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // TODO: Google + GitHub OAuth buttons via Supabase Auth
   const [loadingProvider, setLoadingProvider] = useState<
     "google" | "github" | "email" | null
   >(null);
@@ -23,9 +22,13 @@ export default function LoginPage() {
         password,
       });
       if (error) {
+        if (error.message === "Email not confirmed") {
+          setErrorMessage(
+            "Please check your email and confirm your account first",
+          );
+          alert("Please check your email and confirm your account first.");
+        }
         setErrorMessage(error.message);
-        setLoadingProvider(null);
-        return;
       }
 
       return;
