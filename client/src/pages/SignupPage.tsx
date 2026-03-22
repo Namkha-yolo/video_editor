@@ -2,17 +2,17 @@ import { useState, useEffect, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [isMatch, setIsMatch] = useState<boolean | null>(null);
 
-  // TODO: Google + GitHub OAuth buttons via Supabase Auth
-  const [loadingProvider, setLoadingProvider] = useState<
-    "google" | "github" | "email" | null
-  >(null);
+  const [loadingProvider, setLoadingProvider] = useState<"email" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPasswordEnough, setIsPasswordEnough] = useState<boolean | null>(
+    null,
+  );
 
   // check between password and confirm password
   useEffect(() => {
@@ -22,6 +22,32 @@ export default function LoginPage() {
     }
     setIsMatch(password === confirm);
   }, [password, confirm]);
+
+  useEffect(() => {
+    if (!password) {
+      setIsPasswordEnough(null);
+      return;
+    }
+    setIsPasswordEnough(password.length >= 6);
+  }, [password]);
+
+  const handleSignup = async () => {
+    setErrorMessage(null);
+    setLoadingProvider("email");
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      alert(error.message);
+      setLoadingProvider(null);
+      return;
+    }
+    window.close();
+  };
 
   // Sign-in form Submit
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -33,11 +59,15 @@ export default function LoginPage() {
       alert("Please fill out all fields.");
       return;
     }
+    if (password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters long.");
+      return;
+    }
     if (password !== confirm) {
       return;
     }
 
-    // await handleOAuthSignIn("email");
+    await handleSignup();
   };
 
   return (
@@ -61,6 +91,7 @@ export default function LoginPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          minLength={6}
           required
         />
         <label>Confirm Password</label>
@@ -77,8 +108,59 @@ export default function LoginPage() {
             className="login-action-button"
             disabled={loadingProvider !== null}
           >
-            {loadingProvider === "email" ? "Connecting..." : "Sign-up"}
+            {loadingProvider === "email" ? "Sign-up..." : "Sign-up"}
           </button>
+
+          {/* check whether the length of password is enough */}
+          {isPasswordEnough === false && (
+            <p
+              style={{
+                color: "#e74c3c",
+                fontSize: "0.9rem",
+                textAlign: "center",
+              }}
+            >
+              Password must be at least 6 characters long
+            </p>
+          )}
+
+          {isPasswordEnough === true && (
+            <p
+              style={{
+                color: "#27ae60",
+                fontSize: "0.9rem",
+                textAlign: "center",
+              }}
+            >
+              Password length is valid
+            </p>
+          )}
+
+          {/* check it is match between password and confirm password. */}
+          {isMatch === false && (
+            <p
+              style={{
+                color: "#e74c3c",
+                fontSize: "0.9rem",
+                marginTop: "0.3rem",
+                textAlign: "center",
+              }}
+            >
+              Passwords do not match
+            </p>
+          )}
+          {isMatch === true && (
+            <p
+              style={{
+                color: "#27ae60",
+                fontSize: "0.9rem",
+                marginTop: "0.3rem",
+                textAlign: "center",
+              }}
+            >
+              Passwords match
+            </p>
+          )}
         </div>
       </form>
     </div>
