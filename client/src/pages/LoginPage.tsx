@@ -21,14 +21,16 @@ export default function LoginPage() {
         email,
         password,
       });
+
       if (error) {
-        if (error.message === "Email not confirmed") {
-          setErrorMessage(
-            "Please check your email and confirm your account first",
-          );
-          alert("Please check your email and confirm your account first.");
-        }
-        setErrorMessage(error.message);
+        const nextMessage =
+          error.message === "Email not confirmed"
+            ? "Please check your email and confirm your account first."
+            : error.message;
+
+        setErrorMessage(nextMessage);
+        alert(nextMessage);
+        setLoadingProvider(null);
       }
 
       return;
@@ -187,8 +189,8 @@ export default function LoginPage() {
               </div>
 
               <p className="login-text">
-                {errorMessage ??
-                  "Use Google, GitHub, or Email to sign in and continue to your dashboard."}
+                Use Google, GitHub, or Email to sign in and continue to your
+                dashboard.
               </p>
             </div>
           )}

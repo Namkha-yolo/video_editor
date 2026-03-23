@@ -46,6 +46,7 @@ export default function SignupPage() {
       setLoadingProvider(null);
       return;
     }
+    alert("A verification email has been sent. ");
     window.close();
   };
 
