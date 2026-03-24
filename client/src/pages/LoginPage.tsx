@@ -1,30 +1,65 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Film, Github, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
 export default function LoginPage() {
-  // TODO: Google + GitHub OAuth buttons via Supabase Auth
+  const [isEmailLogin, setIsEmailLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loadingProvider, setLoadingProvider] = useState<
-    "google" | "github" | null
+    "google" | "github" | "email" | null
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleOAuthSignIn = async (provider: "google" | "github") => {
+  const handleOAuthSignIn = async (provider: "google" | "github" | "email") => {
     setErrorMessage(null);
     setLoadingProvider(provider);
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
+    if (provider === "email") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setErrorMessage(error.message);
-      setLoadingProvider(null);
+      if (error) {
+        const nextMessage =
+          error.message === "Email not confirmed"
+            ? "Please check your email and confirm your account first."
+            : error.message;
+
+        setErrorMessage(nextMessage);
+        alert(nextMessage);
+        setLoadingProvider(null);
+      }
+
+      return;
+    } else {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) {
+        setErrorMessage(error.message);
+        setLoadingProvider(null);
+      }
     }
+  };
+
+  // Sign-in form Submit
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    // prevent collison with previous log
+    e.preventDefault();
+
+    // check filled out
+    if (!email || !password) {
+      alert("Please fill out all fields.");
+      return;
+    }
+
+    await handleOAuthSignIn("email");
   };
 
   return (
@@ -66,40 +101,99 @@ export default function LoginPage() {
         </section>
 
         <section className="login-card">
-          <div className="login-card-header">
-            <p className="login-card-eyebrow">Welcome back</p>
-            <h2 className="login-card-title">Sign in to ClipVibe</h2>
-          </div>
+          {isEmailLogin ? (
+            <form className="email-form" onSubmit={handleSubmit}>
+              <p className="login-card-eyebrow">Welcome back</p>
+              <h2 className="login-card-title">Login with Email </h2>
 
-          <div className="login-actions">
-            <button
-              type="button"
-              className="login-action-button"
-              onClick={() => void handleOAuthSignIn("google")}
-              disabled={loadingProvider !== null}
-            >
-              <Sparkles size={18} />
-              {loadingProvider === "google"
-                ? "Connecting..."
-                : "Continue with Google"}
-            </button>
-            <button
-              type="button"
-              className="login-action-button"
-              onClick={() => void handleOAuthSignIn("github")}
-              disabled={loadingProvider !== null}
-            >
-              <Github size={18} />
-              {loadingProvider === "github"
-                ? "Connecting..."
-                : "Continue with GitHub"}
-            </button>
-          </div>
+              <label>Email</label>
+              <input
+                type="email"
+                placeholder="address@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
 
-          <p className="login-text">
-            {errorMessage ??
-              "Use Google or GitHub to sign in and continue to your dashboard."}
-          </p>
+              <label>Password</label>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <div className="login-actions">
+                <p
+                  className="create-btn"
+                  onClick={() =>
+                    window.open("/signup", "_blank", "width=500,height=700")
+                  }
+                >
+                  Create new account
+                </p>
+                <button
+                  type="submit"
+                  className="login-action-button"
+                  disabled={loadingProvider !== null}
+                >
+                  {loadingProvider === "email" ? "Connecting..." : "Log-in"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
+                >
+                  Back to select
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div>
+              <div className="login-card-header">
+                <p className="login-card-eyebrow">Welcome back</p>
+                <h2 className="login-card-title">Sign in to ClipVibe</h2>
+              </div>
+
+              <div className="login-actions">
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={() => void handleOAuthSignIn("google")}
+                  disabled={loadingProvider !== null}
+                >
+                  <Sparkles size={18} />
+                  {loadingProvider === "google"
+                    ? "Connecting..."
+                    : "Continue with Google"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={() => void handleOAuthSignIn("github")}
+                  disabled={loadingProvider !== null}
+                >
+                  <Github size={18} />
+                  {loadingProvider === "github"
+                    ? "Connecting..."
+                    : "Continue with GitHub"}
+                </button>
+                <button
+                  type="button"
+                  className="login-action-button"
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
+                  disabled={loadingProvider !== null}
+                >
+                  ✉️ Continue with Email
+                </button>
+              </div>
+
+              <p className="login-text">
+                Use Google, GitHub, or Email to sign in and continue to your
+                dashboard.
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </div>
