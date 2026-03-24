@@ -45,8 +45,9 @@ export default function SignupPage() {
       alert(error.message);
       setLoadingProvider(null);
       return;
+    } else {
+      alert("A verification email has been sent. ");
     }
-    alert("A verification email has been sent. ");
     window.close();
   };
 
@@ -110,6 +111,13 @@ export default function SignupPage() {
             disabled={loadingProvider !== null}
           >
             {loadingProvider === "email" ? "Sign-up..." : "Sign-up"}
+          </button>
+          <button
+            type="button"
+            className="login-action-button"
+            onClick={() => window.close()}
+          >
+            Back to Login
           </button>
 
           {/* check whether the length of password is enough */}
