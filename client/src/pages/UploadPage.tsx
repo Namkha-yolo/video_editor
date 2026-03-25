@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { supabase } from "@/lib/supabase";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
+import { useProjectStore } from "@/store/projectStore";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -89,6 +90,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
 export default function UploadPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { addClip, removeClip } = useProjectStore();
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
@@ -222,6 +224,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
+      addClip(clip);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 
@@ -232,6 +235,11 @@ export default function UploadPage() {
         error: message,
       }));
     }
+  };
+
+  const handleRemove = (item: UploadItem) => {
+    setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
+    if (item.clipId) removeClip(item.clipId);
   };
 
   // the function after drag and drop
@@ -310,6 +318,14 @@ export default function UploadPage() {
                           {item.status}
                         </p>
                       </div>
+                      <button
+                        className="upload-page__item-remove"
+                        type="button"
+                        aria-label="Remove clip"
+                        onClick={() => handleRemove(item)}
+                      >
+                        ✕
+                      </button>
                     </div>
 
                     {/* check progress */}

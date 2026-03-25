@@ -8,6 +8,38 @@
 
 .mood-page-header {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.mood-back-btn {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  color: #9ca3af;
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.mood-back-btn:hover {
+  color: #f9fafb;
+  border-color: #374151;
+}
+
+.mood-clip-badge {
+  display: inline-block;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 999px;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 12px;
 }
 
 .mood-page-title {
@@ -174,6 +206,22 @@
 }
 
 /* ── Light mode ── */
+.layout--light .mood-back-btn {
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.layout--light .mood-back-btn:hover {
+  color: #111827;
+  border-color: #d1d5db;
+}
+
+.layout--light .mood-clip-badge {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
 .layout--light .mood-page-title {
   color: #111827;
 }

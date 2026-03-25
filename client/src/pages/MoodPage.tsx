@@ -52,10 +52,13 @@ export default function MoodPage() {
   return (
     <div className="mood-page">
       <div className="mood-page-header">
+        <button className="mood-back-btn" type="button" onClick={() => navigate("/upload")}>
+          ← Back
+        </button>
         <h1 className="mood-page-title">Choose a Mood</h1>
-        <p className="mood-page-subtitle">
-          Select the style you want applied to your {clips.length} clip{clips.length !== 1 ? "s" : ""}.
-        </p>
+        <div className="mood-clip-badge">
+          {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
+        </div>
       </div>
 
       <input
