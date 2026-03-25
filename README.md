@@ -160,47 +160,158 @@ clipvibe/
 ## Getting Started
 
 ### Prerequisites
-- Node.js 20+
-- pnpm 9+
-- Docker and Docker Compose
-- A [Supabase](https://supabase.com) project with Google and GitHub OAuth enabled
 
-### Setup
+| Requirement | Version | Install |
+|-------------|---------|---------|
+| Node.js | >= 20 | [nodejs.org](https://nodejs.org/) |
+| pnpm | 9.x | `npm install -g pnpm` (or `npx pnpm` works too) |
+| Docker Desktop | Latest | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
+| FFmpeg | Latest | `brew install ffmpeg` (macOS) / `sudo apt install ffmpeg` (Linux) |
+| Python | >= 3.11 | [python.org](https://www.python.org/downloads/) |
 
-1. Clone and install dependencies:
+You also need accounts on:
+- **[Supabase](https://supabase.com)** — for auth, database, and file storage (free tier works)
+- **[Anthropic](https://console.anthropic.com/)** — for the Claude API key
+
+### Step 1 — Clone and install dependencies
+
 ```bash
 git clone <repo-url>
 cd clipvibe
 pnpm install
 ```
 
-2. Set up environment variables:
+> **Note:** If `pnpm` isn't installed globally, you can use `npx pnpm install` instead. This applies to all `pnpm` commands below.
+
+### Step 2 — Get your API keys
+
+You need 4 keys. Here's where to find each one:
+
+#### Supabase keys (3 keys)
+
+1. Go to [supabase.com](https://supabase.com) and open your project (or create one)
+2. Navigate to **Settings → API** (in the left sidebar under Configuration)
+3. Copy these values:
+
+| Key | Where to find it | Looks like |
+|-----|------------------|------------|
+| **Project URL** | Settings → API → Project URL | `https://xxxxxxxx.supabase.co` |
+| **Anon public key** | Settings → API → Project API keys → `anon` `public` | `eyJhbGciOiJIUzI1NiIsInR5c...` (long JWT) |
+| **Service role key** | Settings → API → Project API keys → `service_role` `secret` | `eyJhbGciOiJIUzI1NiIsInR5c...` (long JWT) |
+
+> **Important:** The service role key has full admin access. Never commit it to git or expose it in frontend code.
+
+#### Anthropic API key (1 key)
+
+1. Go to [console.anthropic.com](https://console.anthropic.com/)
+2. Navigate to **API Keys** → **Create Key**
+3. Copy the key — it starts with `sk-ant-...`
+
+#### Supabase OAuth setup (for Google/GitHub login)
+
+In your Supabase dashboard:
+1. Go to **Authentication → Providers**
+2. Enable **Google** — requires a Google Cloud OAuth client ID and secret ([guide](https://supabase.com/docs/guides/auth/social-login/auth-google))
+3. Enable **GitHub** — requires a GitHub OAuth app ([guide](https://supabase.com/docs/guides/auth/social-login/auth-github))
+
+### Step 3 — Create your `.env` file
+
 ```bash
 cp .env.example .env
-# Fill in your Supabase URL, keys, and Anthropic API key
 ```
 
-3. Build and start all services:
+Open `.env` and fill in your keys:
+
+```env
+# Supabase
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...your-service-role-key
+
+# Anthropic Claude API
+ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+
+# Server (defaults — usually no changes needed)
+PORT=3001
+REDIS_URL=redis://localhost:6379
+AI_PIPELINE_URL=http://localhost:8000
+```
+
+### Step 4 — Start the app
+
+You need **3 terminal tabs** running simultaneously.
+
+#### Terminal 1 — Start Docker and Redis
+
+```bash
+# Open Docker Desktop (macOS)
+open -a Docker
+
+# Wait for Docker to finish starting, then run Redis
+docker run -d --name clipvibe-redis -p 6379:6379 redis:7-alpine
+```
+
+> **Next time** (if the container already exists): `docker start clipvibe-redis`
+
+#### Terminal 2 — Start the backend server
+
+```bash
+cd clipvibe
+pnpm dev:server
+```
+
+You should see:
+```
+Server running on port 3001
+Job queue initialized with Redis
+```
+
+#### Terminal 3 — Start the frontend
+
+```bash
+cd clipvibe
+pnpm dev:client
+```
+
+You should see:
+```
+VITE ready in XXX ms
+➜  Local:   http://localhost:5173/
+```
+
+### Step 5 — Open the app
+
+Go to **http://localhost:5173** in your browser.
+
+You'll see the login page — click **Continue with Google** or **Continue with GitHub** to sign in.
+
+### Stopping everything
+
+| What | How |
+|------|-----|
+| Frontend | `Ctrl+C` in Terminal 3 |
+| Backend | `Ctrl+C` in Terminal 2 |
+| Redis | `docker stop clipvibe-redis` |
+| Docker | Quit Docker Desktop (optional) |
+
+### Running with Docker Compose (alternative)
+
+If you prefer to run everything in Docker instead of separate terminals:
+
 ```bash
 docker compose up --build
 ```
 
-4. Open the app:
-```
-http://localhost:5173
-```
+This starts Redis, the AI pipeline, the server, and the client all at once. The app will be available at **http://localhost:5173**.
 
-### Running Individual Services (without Docker)
+### Running the AI Pipeline locally (optional)
+
+The AI pipeline is only needed for video processing (not for auth). If you want to test it:
 
 ```bash
-# Frontend
-pnpm dev:client
-
-# Backend (requires FFmpeg installed locally)
-pnpm dev:server
-
-# AI Pipeline (requires FFmpeg and Python 3.11)
 cd ai-pipeline
+python -m venv .venv
+source .venv/bin/activate          # macOS/Linux
 pip install -r requirements.txt
 uvicorn api:app --reload --port 8000
 ```
