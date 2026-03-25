@@ -137,6 +137,24 @@
   min-width: 0;
 }
 
+.upload-page__item-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgb(107 114 128);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.25rem;
+  line-height: 1;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.upload-page__item-remove:hover {
+  color: rgb(239 68 68);
+  background: rgb(239 68 68 / 0.1);
+}
+
 .upload-page__item-name {
   font-size: 0.875rem;
   font-weight: 500;
