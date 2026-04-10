@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
-import DashboardPage from "@/pages/DashboardPage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
 import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
 import ProcessingPage from "@/pages/ProcessingPage";
