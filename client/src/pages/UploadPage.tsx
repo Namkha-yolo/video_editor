@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
-import { supabase } from "@/lib/supabase";
+import { useProjectStore } from "@/store/projectStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
 import "./UploadPage.css";
@@ -27,40 +27,35 @@ interface PreviewData {
   height: number;
 }
 
-// Check the file is acceptable.
+// Accept only known video formats and require MIME match when available.
 const isAcceptedVideoFile = (file: File) => {
-  const name = file.name.toLowerCase(); // file name
-  // compare extension name with Accepted extensions
+  const name = file.name.toLowerCase();
   const hasAcceptedExtension = ACCEPTED_EXTENSIONS.some((ext) =>
     name.endsWith(ext),
   );
-  // check whether it is real video.
   const hasAcceptedMime =
     file.type.length === 0 || ACCEPTED_MIME_TYPES.includes(file.type);
   return hasAcceptedExtension && hasAcceptedMime;
 };
+
 const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
   const previewUrl = URL.createObjectURL(file);
 
   try {
-    // make a [video object]
     const video = document.createElement("video");
     video.preload = "auto";
     video.src = previewUrl;
 
-    // await to load video => resolve or reject
     await new Promise<void>((resolve, reject) => {
       video.onloadeddata = () => resolve();
       video.onerror = () => reject(new Error("Unable to load video"));
     });
 
-    // make a [thumnail object]
     let thumbnailUrl: string | null = null;
     try {
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      // extract frame
       const context = canvas.getContext("2d");
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -89,19 +84,17 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
 export default function UploadPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const addClip = useProjectStore((s) => s.addClip);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
-  // Function for updating item
-  // item parameter has been modified to a new UploadItem object
+  // Immutable update helper for a single upload row.
   const updateUploadItem = (
-    localID: string,
+    localId: string,
     updater: (item: UploadItem) => UploadItem,
   ) => {
-    // setUploads(...): change the upload array to new values
-    // map: the function which make a new array looping through the original array
     setUploads((prev) =>
-      prev.map((item) => (item.localId === localID ? updater(item) : item)),
+      prev.map((item) => (item.localId === localId ? updater(item) : item)),
     );
   };
 
@@ -111,44 +104,40 @@ export default function UploadPage() {
   const uploadSingleFile = async (file: File) => {
     const localId = crypto.randomUUID();
 
-    // initial and add new item in uplaod array
+    // Create initial row so users see immediate feedback.
     setUploads((prev) => [
       {
         localId,
         file,
-        status: "queued", // waiting
-        progress: 0, // 0% in progress
-        error: null, // not error
-        thumbnailUrl: null, // not thumbnail
+        status: "queued",
+        progress: 0,
+        error: null,
+        thumbnailUrl: null,
       },
       ...prev,
     ]);
 
-    // Check some error
-    // [Errors] If there is not user
+    // Validate user + file before talking to backend.
     if (!user) {
       updateUploadItem(localId, (item) => ({
-        // previous attribute
         ...item,
         status: "error",
         error: "Login is required.",
       }));
       return;
     }
-    // [Errors] If the file is bigger than 50MB.
+
     if (file.size > MAX_FILE_SIZE_BYTES) {
       updateUploadItem(localId, (item) => ({
-        // previous attribute
         ...item,
         status: "error",
         error: "Each file must be 50MB or less.",
       }));
       return;
     }
-    // [Errors] If the file is not a video
+
     if (!isAcceptedVideoFile(file)) {
       updateUploadItem(localId, (item) => ({
-        // previous attribute
         ...item,
         status: "error",
         error: "Only mp4, mov, webm and real video are allowed.",
@@ -156,25 +145,21 @@ export default function UploadPage() {
       return;
     }
 
-    // [Ready to uploading]
     updateUploadItem(localId, (item) => ({
       ...item,
       status: "uploading",
-      progress: 5, // 5% in progress
+      progress: 5,
       error: null,
     }));
 
     try {
-      // [Extract preview DATA]
       const preview = await getVideoPreviewData(file);
-      // update extracted DATA to item    =>> 20%
       updateUploadItem(localId, (item) => ({
         ...item,
         thumbnailUrl: preview.thumbnailUrl,
         progress: 20,
       }));
 
-      // Declare variable for uploading clips   =>> 40%
       const formData = new FormData();
       formData.append("files", file);
 
@@ -185,13 +170,7 @@ export default function UploadPage() {
       }));
       await sleep(50);
 
-      // [call server's API]    =>> 50%
-      // {
-      //   clips: [
-      //     { ...clip1 },
-      //     { ...clip2 }
-      //   ]
-      // }
+      // Backend returns uploaded clip metadata used throughout the flow.
       updateUploadItem(localId, (item) => ({
         ...item,
         progress: 50,
@@ -206,14 +185,16 @@ export default function UploadPage() {
       if (!clip) {
         throw new Error("Upload completed without clip data");
       }
+
+      // Persist uploaded clip in global store for Mood page job creation.
+      addClip(clip);
+
       await sleep(100);
-      // complete upload     =>> 80%
       updateUploadItem(localId, (item) => ({
         ...item,
         progress: 80,
       }));
 
-      // pending 1 second
       await sleep(100);
       updateUploadItem(localId, (item) => ({
         ...item,
@@ -234,12 +215,13 @@ export default function UploadPage() {
     }
   };
 
-  // the function after drag and drop
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
       void uploadSingleFile(file);
     });
   };
+
+  const hasSuccessfulUpload = uploads.some((item) => item.status === "success");
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -342,6 +324,7 @@ export default function UploadPage() {
         <button
           className="upload-page__next-button"
           type="button"
+          disabled={!hasSuccessfulUpload}
           onClick={() => navigate("/mood")}
         >
           Next
