@@ -5,7 +5,6 @@ import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
-import { useProjectStore } from "@/store/projectStore";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
