@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  CI: "true"
+  VITE_SUPABASE_URL: https://example.supabase.co
+  VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature
+  SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature
+  ANTHROPIC_API_KEY: sk-ant-test
+  REDIS_URL: redis://127.0.0.1:6379
+  AI_PIPELINE_URL: http://127.0.0.1:8000
+
+jobs:
+  node-ci:
+    name: Node Build And Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build client
+        run: pnpm --filter @clipvibe/client build
+
+      - name: Build server
+        run: pnpm --filter @clipvibe/server build
+
+      - name: Run server tests
+        run: pnpm --filter @clipvibe/server test
+
+  python-ci:
+    name: Python Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install AI pipeline dependencies
+        run: pip install -r ai-pipeline/requirements.txt
+
+      - name: Compile AI pipeline Python files
+        run: |
+          python -m py_compile \
+            ai-pipeline/api.py \
+            ai-pipeline/routes/__init__.py \
+            ai-pipeline/services/__init__.py \
+            ai-pipeline/services/analyzer.py \
+            ai-pipeline/services/grader.py \
+            ai-pipeline/utils/__init__.py \
+            ai-pipeline/utils/ffmpeg.py
+
+  docker-build:
+    name: Docker Compose Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: docker compose build
