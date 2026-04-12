@@ -8,8 +8,8 @@
     "build": "tsc",
     "start": "node dist/server/src/index.js",
     "lint": "eslint .",
-    "test": "npm.cmd run build && node tests/run.mjs",
-    "test:week3": "npx.cmd tsx test-week3.ts"
+    "test": "npm run build && node tests/run.mjs",
+    "test:week3": "npx tsx test-week3.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
