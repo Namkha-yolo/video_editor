@@ -178,6 +178,11 @@ def apply_filters(input_path: str, output_path: str, filter_string: str, timeout
         "-y",
         "-i", input_path,
         "-vf", filter_string,
+        "-c:v", "libx264",
+        "-crf", "28",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
         "-c:a", "copy",
         output_path,
     ]
