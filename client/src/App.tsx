@@ -72,6 +72,8 @@ export default function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/mood" element={<MoodPage />} />
         <Route path="/processing/:jobId" element={<ProcessingPage />} />
+        {/* For Debugging */}
+        <Route path="/processing" element={<ProcessingPage />} />
         <Route path="/export/:jobId" element={<ExportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
