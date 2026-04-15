@@ -18,6 +18,7 @@ interface UploadItem {
   progress: number;
   error: string | null;
   thumbnailUrl: string | null;
+  duration: number;
   clipId?: string;
 }
 interface PreviewData {
@@ -67,7 +68,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
 
     return {
       thumbnailUrl,
-      duration: 0,
+      duration: video.duration,
       width: video.videoWidth,
       height: video.videoHeight,
     };
@@ -113,6 +114,7 @@ export default function UploadPage() {
         progress: 0,
         error: null,
         thumbnailUrl: null,
+        duration: 0,
       },
       ...prev,
     ]);
@@ -157,6 +159,7 @@ export default function UploadPage() {
       updateUploadItem(localId, (item) => ({
         ...item,
         thumbnailUrl: preview.thumbnailUrl,
+        duration: preview.duration,
         progress: 20,
       }));
 
@@ -295,8 +298,9 @@ export default function UploadPage() {
                           {item.file.name}
                         </p>
                         <p className="upload-page__item-size">
-                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB •{" "}
-                          {item.status}
+                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB
+                          {item.duration > 0 && ` • ${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, "0")}`}
+                          {" • "}{item.status}
                         </p>
                       </div>
                       <button

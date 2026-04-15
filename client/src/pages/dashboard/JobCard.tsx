@@ -16,7 +16,15 @@ export function JobCard({ job, preview, onReRun, onNavigate }: JobCardProps) {
     <div className="dashboard-row">
       <div className="dashboard-row-preview-wrap">
         {preview ? (
-          <video src={preview} className="dashboard-row-preview" muted preload="metadata" playsInline />
+          <video
+            src={preview}
+            className="dashboard-row-preview"
+            muted
+            preload="metadata"
+            playsInline
+            onMouseEnter={(e) => void (e.currentTarget as HTMLVideoElement).play()}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLVideoElement).pause(); (e.currentTarget as HTMLVideoElement).currentTime = 0; }}
+          />
         ) : (
           <div className="dashboard-row-preview dashboard-row-preview--empty">No preview</div>
         )}

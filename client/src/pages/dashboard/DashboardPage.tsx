@@ -138,6 +138,9 @@ export default function DashboardPage() {
           <p className="dashboard-subtitle">
             Organized by mood so repeated runs are grouped and easier to scan.
           </p>
+          <p className="dashboard-summary">
+            {jobsWithExistingClips.length} job{jobsWithExistingClips.length !== 1 ? "s" : ""} across {jobsByMood.length} mood{jobsByMood.length !== 1 ? "s" : ""}
+          </p>
         </div>
       </div>
 

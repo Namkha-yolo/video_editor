@@ -46,6 +46,12 @@
   margin: 0.35rem 0 0;
 }
 
+.dashboard-summary {
+  color: #6b8aad;
+  font-size: 0.8rem;
+  margin: 0.2rem 0 0;
+}
+
 .dashboard-new-btn {
   background: linear-gradient(135deg, #1bb4d8, #3b82f6);
   border: none;
