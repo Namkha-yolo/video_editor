@@ -4,7 +4,9 @@ import api from "@/lib/api";
 import { useProjectStore } from "@/store/projectStore";
 import type { Clip, Mood } from "@clipvibe/shared";
 import { JobGroupCard } from "./JobGroupCard";
-import type { DashboardJob, JobsResponse, ClipsResponse, JobDetailResponse } from "./types";
+import { StatusFilters } from "./StatusFilters";
+import { ClipsPanel } from "./ClipsPanel";
+import type { DashboardJob, JobsResponse, ClipsResponse, JobDetailResponse, StatusFilter } from "./types";
 import { MOODS } from "./utils";
 import "./DashboardPage.css";
 
@@ -19,6 +21,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedMoodGroups, setExpandedMoodGroups] = useState<Record<string, boolean>>({});
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [showClipsPanel, setShowClipsPanel] = useState(false);
 
   const fetchPreviewUrls = useCallback(async (jobList: DashboardJob[]) => {
     if (jobList.length === 0) {
@@ -93,8 +98,13 @@ export default function DashboardPage() {
     [sortedJobs, clipById]
   );
 
+  const filteredJobs = useMemo(() => {
+    if (statusFilter === "all") return jobsWithExistingClips;
+    return jobsWithExistingClips.filter((job) => job.status === statusFilter);
+  }, [jobsWithExistingClips, statusFilter]);
+
   const jobsByMood = useMemo(() => {
-    const grouped = jobsWithExistingClips.reduce<Record<string, DashboardJob[]>>((acc, job) => {
+    const grouped = filteredJobs.reduce<Record<string, DashboardJob[]>>((acc, job) => {
       acc[job.mood] = (acc[job.mood] || []).concat(job);
       return acc;
     }, {});
@@ -102,7 +112,7 @@ export default function DashboardPage() {
     return Object.entries(grouped)
       .map(([mood, moodJobs]) => ({ mood, jobs: moodJobs }))
       .sort((a, b) => +new Date(b.jobs[0].created_at) - +new Date(a.jobs[0].created_at));
-  }, [jobsWithExistingClips]);
+  }, [filteredJobs]);
 
   const handleReRun = (job: DashboardJob) => {
     const matchedClips = job.clip_ids
@@ -121,6 +131,23 @@ export default function DashboardPage() {
     navigate("/mood");
   };
 
+  const handleDeleteClip = useCallback(async (clipId: string) => {
+    setDeletingClipId(clipId);
+    try {
+      await api.delete(`/clips/${clipId}`);
+      setClipById((prev) => {
+        const next = { ...prev };
+        delete next[clipId];
+        return next;
+      });
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete clip.");
+    } finally {
+      setDeletingClipId(null);
+    }
+  }, []);
+
   if (loading) {
     return (
       <section className="dashboard-page">
@@ -133,20 +160,50 @@ export default function DashboardPage() {
   return (
     <section className="dashboard-page">
       <div className="dashboard-header">
-        <div>
+        <div className="dashboard-header-left">
           <h1 className="dashboard-title">Job History</h1>
           <p className="dashboard-subtitle">
-            Organized by mood so repeated runs are grouped and easier to scan.
+            {filteredJobs.length} job{filteredJobs.length !== 1 ? "s" : ""} across {jobsByMood.length} mood{jobsByMood.length !== 1 ? "s" : ""}
           </p>
-          <p className="dashboard-summary">
-            {jobsWithExistingClips.length} job{jobsWithExistingClips.length !== 1 ? "s" : ""} across {jobsByMood.length} mood{jobsByMood.length !== 1 ? "s" : ""}
-          </p>
+        </div>
+        <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
+          + New Project
+        </button>
+      </div>
+
+      <div className="dashboard-controls">
+        <div className="dashboard-filters-section">
+          <p className="dashboard-filters-label">Filter by Status:</p>
+          <StatusFilters activeFilter={statusFilter} onFilterChange={setStatusFilter} />
         </div>
       </div>
 
       {error && <p className="dashboard-error">{error}</p>}
 
-      {jobsWithExistingClips.length === 0 ? (
+      {Object.values(clipById).length > 0 && (
+        <div className="dashboard-clips-section">
+          <button
+            type="button"
+            className="dashboard-clips-toggle"
+            onClick={() => setShowClipsPanel(!showClipsPanel)}
+            aria-expanded={showClipsPanel}
+          >
+            <span className="dashboard-clips-toggle-icon">{showClipsPanel ? "▼" : "▶"}</span>
+            <span className="dashboard-clips-toggle-text">
+              My Clips ({Object.values(clipById).length})
+            </span>
+          </button>
+          {showClipsPanel && (
+            <ClipsPanel
+              clips={Object.values(clipById)}
+              deletingClipId={deletingClipId}
+              onDeleteClip={handleDeleteClip}
+            />
+          )}
+        </div>
+      )}
+
+      {filteredJobs.length === 0 ? (
         <div className="dashboard-empty">
           <h2>No jobs yet</h2>
           <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
@@ -155,20 +212,22 @@ export default function DashboardPage() {
           </button>
         </div>
       ) : (
-        <div className="dashboard-list">
-          {jobsByMood.map((group) => (
-            <JobGroupCard
-              key={group.mood}
-              group={group}
-              isExpanded={expandedMoodGroups[group.mood] || false}
-              previewUrlsByJob={previewUrlsByJob}
-              onToggleExpand={(mood) =>
-                setExpandedMoodGroups((prev) => ({ ...prev, [mood]: !prev[mood] }))
-              }
-              onReRun={handleReRun}
-              onNavigate={navigate}
-            />
-          ))}
+        <div className="dashboard-jobs-section">
+          <div className="dashboard-list">
+            {jobsByMood.map((group) => (
+              <JobGroupCard
+                key={group.mood}
+                group={group}
+                isExpanded={expandedMoodGroups[group.mood] || false}
+                previewUrlsByJob={previewUrlsByJob}
+                onToggleExpand={(mood) =>
+                  setExpandedMoodGroups((prev) => ({ ...prev, [mood]: !prev[mood] }))
+                }
+                onReRun={handleReRun}
+                onNavigate={navigate}
+              />
+            ))}
+          </div>
         </div>
       )}
     </section>

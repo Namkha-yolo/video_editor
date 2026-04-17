@@ -26,4 +26,4 @@ export interface JobDetailResponse {
   }>;
 }
 
-export type StatusFilter = "all" | "in-progress" | "complete" | "failed";
+export type StatusFilter = "all" | "queued" | "analyzing" | "grading" | "complete" | "failed";
