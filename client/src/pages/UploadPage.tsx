@@ -206,7 +206,6 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
-      addClip(clip);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 

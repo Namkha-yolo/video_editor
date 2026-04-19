@@ -12,12 +12,19 @@ interface ProjectState {
   setCurrentJob: (job: Job | null) => void;
 }
 
+function dedupeClips(clips: Clip[]) {
+  return Array.from(new Map(clips.map((clip) => [clip.id, clip])).values());
+}
+
 export const useProjectStore = create<ProjectState>((set) => ({
   clips: [],
   selectedMood: null,
   currentJob: null,
-  setClips: (clips) => set({ clips }),
-  addClip: (clip) => set((s) => ({ clips: [...s.clips, clip] })),
+  setClips: (clips) => set({ clips: dedupeClips(clips) }),
+  addClip: (clip) =>
+    set((s) => ({
+      clips: dedupeClips([...s.clips, clip]),
+    })),
   removeClip: (id) => set((s) => ({ clips: s.clips.filter((c) => c.id !== id) })),
   setSelectedMood: (mood) => set({ selectedMood: mood }),
   setCurrentJob: (job) => set({ currentJob: job }),
