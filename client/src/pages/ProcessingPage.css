@@ -99,6 +99,26 @@
   background: rgb(59 130 246);
 }
 
+.processing-overview__progress-bar--queued {
+  background: rgb(71 85 105);
+}
+
+.processing-overview__progress-bar--analyzing {
+  background: linear-gradient(90deg, rgb(56 189 248), rgb(59 130 246));
+}
+
+.processing-overview__progress-bar--grading {
+  background: linear-gradient(90deg, rgb(59 130 246), rgb(16 185 129));
+}
+
+.processing-overview__progress-bar--complete {
+  background: rgb(16 185 129);
+}
+
+.processing-overview__progress-bar--failed {
+  background: rgb(239 68 68);
+}
+
 .processing-clip-list {
   display: flex;
   flex-direction: column;
@@ -155,6 +175,111 @@
   height: 100%;
   border-radius: 9999px;
   background: rgb(59 130 246);
+}
+
+.processing-clip-card__progress-bar--queued {
+  background: rgb(71 85 105);
+}
+
+.processing-clip-card__progress-bar--analyzing {
+  background: linear-gradient(90deg, rgb(56 189 248), rgb(59 130 246));
+}
+
+.processing-clip-card__progress-bar--grading {
+  background: linear-gradient(90deg, rgb(59 130 246), rgb(16 185 129));
+}
+
+.processing-clip-card__progress-bar--complete {
+  background: rgb(16 185 129);
+}
+
+.processing-clip-card__progress-bar--failed {
+  background: rgb(239 68 68);
+}
+
+.processing-status-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.processing-status-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.05);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(226 232 240);
+}
+
+.processing-status-badge--queued {
+  color: rgb(203 213 225);
+}
+
+.processing-status-badge--analyzing {
+  color: rgb(125 211 252);
+}
+
+.processing-status-badge--grading {
+  color: rgb(147 197 253);
+}
+
+.processing-status-badge--complete {
+  color: rgb(110 231 183);
+}
+
+.processing-status-badge--failed {
+  color: rgb(252 165 165);
+}
+
+.processing-status-message {
+  margin: 0;
+  line-height: 1.6;
+  color: rgb(203 213 225);
+}
+
+.processing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.processing-action {
+  border-radius: 0.9rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+  cursor: pointer;
+}
+
+.processing-action--primary {
+  border: 1px solid rgb(37 99 235);
+  background: rgb(37 99 235);
+  color: rgb(255 255 255);
+}
+
+.processing-action--primary:hover {
+  border-color: rgb(59 130 246);
+  background: rgb(59 130 246);
+}
+
+.processing-action--secondary {
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.04);
+  color: rgb(226 232 240);
+}
+
+.processing-action--secondary:hover {
+  border-color: rgb(96 165 250 / 0.45);
+  background: rgb(30 41 59);
 }
 
 @media (min-width: 640px) {

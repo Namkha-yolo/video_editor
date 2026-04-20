@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { moods } from "@clipvibe/shared";
@@ -22,6 +22,10 @@ export default function MoodPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const readyClips = useMemo(
+    () => Array.from(new Map(clips.map((clip) => [clip.id, clip])).values()),
+    [clips]
+  );
 
   const filteredMoods = moods.filter((m) =>
     m.label.toLowerCase().includes(query.toLowerCase())
@@ -29,7 +33,7 @@ export default function MoodPage() {
 
   async function handleStartGrading() {
     if (!selectedMood) return;
-    if (clips.length === 0) {
+    if (readyClips.length === 0) {
       setError("No clips uploaded. Go back and upload some clips first.");
       return;
     }
@@ -40,7 +44,7 @@ export default function MoodPage() {
     try {
       const { data } = await api.post<{ job_id: string }>("/jobs", {
         mood: selectedMood,
-        clip_ids: clips.map((c) => c.id),
+        clip_ids: readyClips.map((clip) => clip.id),
       });
       navigate(`/processing/${data.job_id}`);
     } catch (err: any) {
@@ -57,7 +61,7 @@ export default function MoodPage() {
         </button>
         <h1 className="mood-page-title">Choose a Mood</h1>
         <div className="mood-clip-badge">
-          {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
+          {readyClips.length} clip{readyClips.length !== 1 ? "s" : ""} ready
         </div>
       </div>
 
