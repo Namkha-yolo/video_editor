@@ -14,6 +14,8 @@ interface JobGroupCardProps {
   onToggleExpand: (mood: string) => void;
   onReRun: (job: DashboardJob) => void;
   onNavigate: (path: string) => void;
+  onDelete: (job: DashboardJob) => void;
+  deletingJobId: string | null;
 }
 
 export function JobGroupCard({
@@ -23,6 +25,8 @@ export function JobGroupCard({
   onToggleExpand,
   onReRun,
   onNavigate,
+  onDelete,
+  deletingJobId,
 }: JobGroupCardProps) {
   const visibleJobs = isExpanded ? group.jobs : group.jobs.slice(0, 2);
 
@@ -32,7 +36,8 @@ export function JobGroupCard({
         <div>
           <p className="dashboard-group-mood">{formatMood(group.mood)}</p>
           <p className="dashboard-group-meta">
-            {group.jobs.length} run{group.jobs.length !== 1 ? "s" : ""} | last on {formatDate(group.jobs[0].created_at)}
+            {group.jobs.length} run{group.jobs.length !== 1 ? "s" : ""} | last
+            on {formatDate(group.jobs[0].created_at)}
           </p>
         </div>
         {group.jobs.length > 2 && (
@@ -54,6 +59,8 @@ export function JobGroupCard({
             preview={previewUrlsByJob[job.id]?.[0] || null}
             onReRun={onReRun}
             onNavigate={onNavigate}
+            onDelete={onDelete}
+            isDeleting={deletingJobId === job.id}
           />
         ))}
       </div>

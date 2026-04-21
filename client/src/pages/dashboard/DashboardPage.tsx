@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [expandedMoodGroups, setExpandedMoodGroups] = useState<Record<string, boolean>>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [showClipsPanel, setShowClipsPanel] = useState(false);
 
   const fetchPreviewUrls = useCallback(async (jobList: DashboardJob[]) => {
@@ -148,6 +149,24 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const handleDeleteJob = useCallback(async (job: DashboardJob) => {
+    setDeletingJobId(job.id);
+    try {
+      await api.delete(`/jobs/${job.id}`);
+      setJobs((prev) => prev.filter((item) => item.id !== job.id));
+      setPreviewUrlsByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete job.");
+    } finally {
+      setDeletingJobId(null);
+    }
+  }, []);
+
   if (loading) {
     return (
       <section className="dashboard-page">
@@ -225,6 +244,8 @@ export default function DashboardPage() {
                 }
                 onReRun={handleReRun}
                 onNavigate={navigate}
+                onDelete={handleDeleteJob}
+                deletingJobId={deletingJobId}
               />
             ))}
           </div>
