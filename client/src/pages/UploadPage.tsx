@@ -223,6 +223,18 @@ export default function UploadPage() {
     if (item.clipId) removeClip(item.clipId);
   };
 
+  const handleClearAll = () => {
+    uploads
+      .filter((u) => u.status === "success" || u.status === "error" || u.status === "canceled")
+      .forEach((u) => { if (u.clipId) removeClip(u.clipId); });
+    setUploads((prev) => prev.filter((u) => u.status === "uploading" || u.status === "queued"));
+  };
+
+  const handleRetry = (item: UploadItem) => {
+    setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
+    void uploadSingleFile(item.file);
+  };
+
   // the function after drag and drop
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -231,6 +243,10 @@ export default function UploadPage() {
   };
 
   const hasSuccessfulUpload = uploads.some((item) => item.status === "success");
+  const successCount = uploads.filter((u) => u.status === "success").length;
+  const hasDoneUploads = uploads.some(
+    (u) => u.status === "success" || u.status === "error" || u.status === "canceled",
+  );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -274,7 +290,23 @@ export default function UploadPage() {
 
       <div className="upload-page__list-panel">
         <div className="upload-page__list-header">
-          <h2 className="upload-page__list-title">Uploaded Clips</h2>
+          <h2 className="upload-page__list-title">
+            Uploaded Clips
+            {uploads.length > 0 && (
+              <span className="upload-page__count-badge">
+                {successCount} / {uploads.length}
+              </span>
+            )}
+          </h2>
+          {hasDoneUploads && (
+            <button
+              className="upload-page__clear-button"
+              type="button"
+              onClick={handleClearAll}
+            >
+              Clear done
+            </button>
+          )}
         </div>
         {uploads.length === 0 ? (
           <p className="upload-page__list-empty">No clips uploaded yet.</p>
@@ -327,6 +359,18 @@ export default function UploadPage() {
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
+                    {item.status === "error" && (
+                      <div className="upload-page__item-error-row">
+                        <p className="upload-page__item-error">{item.error}</p>
+                        <button
+                          className="upload-page__retry-button"
+                          type="button"
+                          onClick={() => handleRetry(item)}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
