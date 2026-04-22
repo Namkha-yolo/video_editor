@@ -83,7 +83,7 @@ function getCurrentClipIndex(progressEvent: JobProgressEvent | null) {
 function deriveClipState(
   index: number,
   status: JobStatus,
-  progressEvent: JobProgressEvent | null
+  progressEvent: JobProgressEvent | null,
 ) {
   const currentIndex = getCurrentClipIndex(progressEvent);
 
@@ -121,7 +121,7 @@ function buildStatusMessage(
   status: JobStatus,
   clipCount: number,
   progressEvent: JobProgressEvent | null,
-  errorMessage: string | null
+  errorMessage: string | null,
 ) {
   if (errorMessage) return errorMessage;
   if (progressEvent?.message) return progressEvent.message;
@@ -148,7 +148,9 @@ export default function ProcessingPage() {
   const storedClips = useProjectStore((s) => s.clips);
 
   const [job, setJob] = useState<JobDetailResponse | null>(null);
-  const [progressEvent, setProgressEvent] = useState<JobProgressEvent | null>(null);
+  const [progressEvent, setProgressEvent] = useState<JobProgressEvent | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,7 +199,7 @@ export default function ProcessingPage() {
               status: event.status,
               error_message: event.error || current.error_message || null,
             }
-          : current
+          : current,
       );
 
       if (event.status === "complete" || event.status === "failed") {
@@ -211,10 +213,14 @@ export default function ProcessingPage() {
     };
   }, [jobId, loadJob]);
 
-  const fallbackClips = useMemo(() => buildFallbackClips(storedClips), [storedClips]);
+  const fallbackClips = useMemo(
+    () => buildFallbackClips(storedClips),
+    [storedClips],
+  );
   const clips = job?.clips.length ? job.clips : fallbackClips;
   const jobStatus = job?.status ?? progressEvent?.status ?? "queued";
-  const errorMessage = error || job?.error_message || progressEvent?.error || null;
+  const errorMessage =
+    error || job?.error_message || progressEvent?.error || null;
 
   const clipItems = useMemo<DisplayClip[]>(
     () =>
@@ -227,17 +233,25 @@ export default function ProcessingPage() {
           status: derived.status,
         };
       }),
-    [clips, jobStatus, progressEvent]
+    [clips, jobStatus, progressEvent],
   );
 
   const overallProgress =
     clipItems.length > 0
       ? Math.round(
-          clipItems.reduce((total, clip) => total + clip.progress, 0) / clipItems.length
+          clipItems.reduce((total, clip) => total + clip.progress, 0) /
+            clipItems.length,
         )
       : 0;
-  const completedClips = clipItems.filter((clip) => clip.progress >= 100).length;
-  const statusMessage = buildStatusMessage(jobStatus, clipItems.length, progressEvent, errorMessage);
+  const completedClips = clipItems.filter(
+    (clip) => clip.progress >= 100,
+  ).length;
+  const statusMessage = buildStatusMessage(
+    jobStatus,
+    clipItems.length,
+    progressEvent,
+    errorMessage,
+  );
 
   useEffect(() => {
     if (!jobId || jobStatus !== "complete") return;
@@ -290,7 +304,17 @@ export default function ProcessingPage() {
             <div className="processing-overview__header">
               <div>
                 <p className="processing-overview__eyebrow">Overall progress</p>
-                <h2 className="processing-overview__value">{overallProgress}%</h2>
+                <h2
+                  className={`processing-overview__value${
+                    jobStatus === "failed"
+                      ? " processing-overview__value--failed"
+                      : ""
+                  }`}
+                >
+                  {jobStatus === "failed"
+                    ? titleCaseStatus(jobStatus)
+                    : `${overallProgress}%`}
+                </h2>
               </div>
               <div className="processing-overview__meta">
                 <span>
@@ -327,9 +351,13 @@ export default function ProcessingPage() {
                   <article key={clip.id} className="processing-clip-card">
                     <div className="processing-clip-card__header">
                       <div className="processing-clip-card__meta">
-                        <p className="processing-clip-card__title">{clip.title}</p>
+                        <p className="processing-clip-card__title">
+                          {clip.title}
+                        </p>
                       </div>
-                      <span className="processing-clip-card__status">{clip.status}</span>
+                      <span className="processing-clip-card__status">
+                        {clip.status}
+                      </span>
                     </div>
 
                     <div className="processing-clip-card__progress">
@@ -357,7 +385,9 @@ export default function ProcessingPage() {
             </div>
 
             <div className="processing-status-stack">
-              <div className={`processing-status-badge processing-status-badge--${jobStatus}`}>
+              <div
+                className={`processing-status-badge processing-status-badge--${jobStatus}`}
+              >
                 {titleCaseStatus(jobStatus)}
               </div>
               <p className="processing-status-message">{statusMessage}</p>
