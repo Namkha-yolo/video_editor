@@ -7,7 +7,7 @@ import { JobGroupCard } from "./JobGroupCard";
 import { StatusFilters } from "./StatusFilters";
 import { ClipsPanel } from "./ClipsPanel";
 import type { DashboardJob, JobsResponse, ClipsResponse, JobDetailResponse, StatusFilter } from "./types";
-import { MOODS } from "./utils";
+import { MOODS, formatDateTime } from "./utils";
 import "./DashboardPage.css";
 
 export default function DashboardPage() {
@@ -25,6 +25,9 @@ export default function DashboardPage() {
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [showClipsPanel, setShowClipsPanel] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const fetchPreviewUrls = useCallback(async (jobList: DashboardJob[]) => {
     if (jobList.length === 0) {
@@ -54,19 +57,20 @@ export default function DashboardPage() {
     setPreviewUrlsByJob(nextMap);
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadDashboardData = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (mode === "initial") {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
-    async function loadDashboardData() {
-      setLoading(true);
       setError(null);
       try {
         const [{ data: jobsData }, { data: clipsData }] = await Promise.all([
           api.get<JobsResponse>("/jobs"),
           api.get<ClipsResponse>("/clips"),
         ]);
-
-        if (!isMounted) return;
 
         const fetchedJobs = jobsData.jobs || [];
         const clipMap: Record<string, Clip> = {};
@@ -77,17 +81,23 @@ export default function DashboardPage() {
         setJobs(fetchedJobs);
         setClipById(clipMap);
         await fetchPreviewUrls(fetchedJobs);
+        setLastUpdatedAt(new Date().toISOString());
       } catch (err: any) {
-        if (!isMounted) return;
         setError(err?.response?.data?.error || "Failed to load job history.");
       } finally {
-        if (isMounted) setLoading(false);
+        if (mode === "initial") {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
       }
-    }
+    },
+    [fetchPreviewUrls]
+  );
 
-    void loadDashboardData();
-    return () => { isMounted = false; };
-  }, [fetchPreviewUrls]);
+  useEffect(() => {
+    void loadDashboardData("initial");
+  }, [loadDashboardData]);
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
@@ -99,10 +109,40 @@ export default function DashboardPage() {
     [sortedJobs, clipById]
   );
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const searchableJobs = useMemo(() => {
+    if (!normalizedSearch) return jobsWithExistingClips;
+
+    return jobsWithExistingClips.filter((job) => {
+      const fullId = job.id.toLowerCase();
+      const shortId = job.id.slice(0, 8).toLowerCase();
+      const mood = job.mood.toLowerCase();
+      return fullId.includes(normalizedSearch) || shortId.includes(normalizedSearch) || mood.includes(normalizedSearch);
+    });
+  }, [jobsWithExistingClips, normalizedSearch]);
+
+  const statusCounts = useMemo<Record<StatusFilter, number>>(() => {
+    const counts: Record<StatusFilter, number> = {
+      all: searchableJobs.length,
+      queued: 0,
+      analyzing: 0,
+      grading: 0,
+      complete: 0,
+      failed: 0,
+    };
+
+    searchableJobs.forEach((job) => {
+      counts[job.status] += 1;
+    });
+
+    return counts;
+  }, [searchableJobs]);
+
   const filteredJobs = useMemo(() => {
-    if (statusFilter === "all") return jobsWithExistingClips;
-    return jobsWithExistingClips.filter((job) => job.status === statusFilter);
-  }, [jobsWithExistingClips, statusFilter]);
+    if (statusFilter === "all") return searchableJobs;
+    return searchableJobs.filter((job) => job.status === statusFilter);
+  }, [searchableJobs, statusFilter]);
 
   const jobsByMood = useMemo(() => {
     const grouped = filteredJobs.reduce<Record<string, DashboardJob[]>>((acc, job) => {
@@ -114,6 +154,17 @@ export default function DashboardPage() {
       .map(([mood, moodJobs]) => ({ mood, jobs: moodJobs }))
       .sort((a, b) => +new Date(b.jobs[0].created_at) - +new Date(a.jobs[0].created_at));
   }, [filteredJobs]);
+
+  const visibleMoodKeys = useMemo(() => jobsByMood.map((group) => group.mood), [jobsByMood]);
+
+  const allGroupsExpanded = useMemo(
+    () => visibleMoodKeys.length > 0 && visibleMoodKeys.every((mood) => Boolean(expandedMoodGroups[mood])),
+    [visibleMoodKeys, expandedMoodGroups]
+  );
+
+  const hasAnyJobHistory = jobsWithExistingClips.length > 0;
+  const hasNoFilteredResults = hasAnyJobHistory && filteredJobs.length === 0;
+  const hasSearchOrFilter = Boolean(normalizedSearch) || statusFilter !== "all";
 
   const handleReRun = (job: DashboardJob) => {
     const matchedClips = job.clip_ids
@@ -131,6 +182,11 @@ export default function DashboardPage() {
     }
     navigate("/mood");
   };
+
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    await loadDashboardData("refresh");
+  }, [loadDashboardData, refreshing]);
 
   const handleDeleteClip = useCallback(async (clipId: string) => {
     setDeletingClipId(clipId);
@@ -167,6 +223,22 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const toggleAllMoodGroups = useCallback(() => {
+    const shouldExpandAll = !allGroupsExpanded;
+    setExpandedMoodGroups((prev) => {
+      const next = { ...prev };
+      visibleMoodKeys.forEach((mood) => {
+        next[mood] = shouldExpandAll;
+      });
+      return next;
+    });
+  }, [allGroupsExpanded, visibleMoodKeys]);
+
+  const clearAllFilters = useCallback(() => {
+    setStatusFilter("all");
+    setSearchQuery("");
+  }, []);
+
   if (loading) {
     return (
       <section className="dashboard-page">
@@ -184,16 +256,48 @@ export default function DashboardPage() {
           <p className="dashboard-subtitle">
             {filteredJobs.length} job{filteredJobs.length !== 1 ? "s" : ""} across {jobsByMood.length} mood{jobsByMood.length !== 1 ? "s" : ""}
           </p>
+          {lastUpdatedAt && <p className="dashboard-last-updated">Last updated {formatDateTime(lastUpdatedAt)}</p>}
         </div>
-        <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
-          + New Project
-        </button>
+        <div className="dashboard-header-actions">
+          <button
+            type="button"
+            className="dashboard-action-btn dashboard-action-btn--secondary"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+          <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
+            + New Project
+          </button>
+        </div>
       </div>
 
       <div className="dashboard-controls">
+        <div className="dashboard-controls-row">
+          <div className="dashboard-search-wrap">
+            <label className="dashboard-search-label" htmlFor="dashboard-job-search">Search jobs</label>
+            <input
+              id="dashboard-job-search"
+              type="text"
+              className="dashboard-search-input"
+              placeholder="Search by mood or job ID"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="dashboard-action-btn dashboard-action-btn--secondary"
+            onClick={toggleAllMoodGroups}
+            disabled={jobsByMood.length === 0}
+          >
+            {allGroupsExpanded ? "Collapse all moods" : "Expand all moods"}
+          </button>
+        </div>
         <div className="dashboard-filters-section">
           <p className="dashboard-filters-label">Filter by Status:</p>
-          <StatusFilters activeFilter={statusFilter} onFilterChange={setStatusFilter} />
+          <StatusFilters activeFilter={statusFilter} onFilterChange={setStatusFilter} counts={statusCounts} />
         </div>
       </div>
 
@@ -222,13 +326,23 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {filteredJobs.length === 0 ? (
+      {!hasAnyJobHistory ? (
         <div className="dashboard-empty">
           <h2>No jobs yet</h2>
           <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
           <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
             Upload Clips
           </button>
+        </div>
+      ) : hasNoFilteredResults ? (
+        <div className="dashboard-empty dashboard-empty--filtered">
+          <h2>No matching jobs</h2>
+          <p>Try a different search term or reset filters to see all jobs.</p>
+          {hasSearchOrFilter && (
+            <button type="button" className="dashboard-action-btn dashboard-action-btn--secondary" onClick={clearAllFilters}>
+              Clear search and filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="dashboard-jobs-section">
