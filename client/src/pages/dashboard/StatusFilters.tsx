@@ -4,9 +4,10 @@ import { STATUS_LABEL } from "./utils";
 interface StatusFiltersProps {
   activeFilter: StatusFilter;
   onFilterChange: (filter: StatusFilter) => void;
+  counts: Record<StatusFilter, number>;
 }
 
-export function StatusFilters({ activeFilter, onFilterChange }: StatusFiltersProps) {
+export function StatusFilters({ activeFilter, onFilterChange, counts }: StatusFiltersProps) {
   const filters: StatusFilter[] = ["all", "queued", "analyzing", "grading", "complete", "failed"];
 
   return (
@@ -17,8 +18,10 @@ export function StatusFilters({ activeFilter, onFilterChange }: StatusFiltersPro
           type="button"
           className={`dashboard-filter-btn ${activeFilter === filter ? "dashboard-filter-btn--active" : ""}`}
           onClick={() => onFilterChange(filter)}
+          disabled={filter !== "all" && counts[filter] === 0}
         >
-          {filter === "all" ? "All Jobs" : (STATUS_LABEL[filter as keyof typeof STATUS_LABEL] || filter)}
+          <span>{filter === "all" ? "All Jobs" : (STATUS_LABEL[filter as keyof typeof STATUS_LABEL] || filter)}</span>
+          <span className="dashboard-filter-count">{counts[filter]}</span>
         </button>
       ))}
     </div>
