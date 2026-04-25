@@ -4,9 +4,9 @@ import {
   buildAdaptiveFallbackFilters,
   generateGradingFilters,
   type ClipGradingResult,
+  type MoodInput,
 } from "./moodEngine.js";
 import { ClaudeRateLimitError } from "./rateLimiters.js";
-import type { Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 
 interface ClipRecord {
@@ -143,7 +143,7 @@ async function requestAnalysis(
 }
 
 function mergeGradingResults(
-  mood: Mood,
+  mood: MoodInput,
   analyses: ClipAnalysis[],
   generatedResults: ClipGradingResult[],
   buildFallback: typeof buildAdaptiveFallbackFilters
@@ -157,7 +157,7 @@ function mergeGradingResults(
 }
 
 async function resolveGradingResults(
-  mood: Mood,
+  mood: MoodInput,
   analyses: ClipAnalysis[],
   requesterId: string,
   dependencies: VideoProcessorDependencies,
@@ -226,7 +226,7 @@ async function requestGrade(
 
 export async function processGradingJob(
   jobId: string,
-  mood: Mood,
+  mood: MoodInput,
   clipIds: string[],
   overrides: Partial<VideoProcessorDependencies> = {}
 ) {

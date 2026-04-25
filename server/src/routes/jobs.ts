@@ -4,12 +4,34 @@ import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 import { enqueueGradingJob } from "../services/jobQueue.js";
 import { buildRateLimitHeaders, consumeJobCreationRateLimit } from "../services/rateLimiters.js";
+import type { CustomMoodPreset, Mood } from "../../../shared/types/mood.js";
 
 const router: RouterType = Router();
 
+const MoodSchema = z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]);
+
+const CustomMoodSchema = z.object({
+  id: z.string().trim().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/),
+  label: z.string().trim().min(1).max(48),
+  description: z.string().trim().max(160).optional(),
+  color: z.string().trim().max(24).optional(),
+  grading: z.object({
+    temperature: z.number().int().min(1000).max(10000),
+    saturation: z.number().min(0).max(3),
+    contrast: z.number().min(0).max(2),
+    brightness: z.number().min(-1).max(1),
+    vignette: z.number().min(0).max(1),
+    grain: z.number().min(0).max(30),
+  }),
+});
+
 const CreateJobSchema = z.object({
-  mood: z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]),
+  mood: MoodSchema.optional(),
+  custom_mood: CustomMoodSchema.optional(),
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
+}).refine((body) => Boolean(body.mood) !== Boolean(body.custom_mood), {
+  message: "Provide either mood or custom_mood",
+  path: ["mood"],
 });
 
 function normaliseClipIds(clipIds: string[]) {
@@ -19,6 +41,10 @@ function normaliseClipIds(clipIds: string[]) {
 function orderByIds<T extends { id: string }>(items: T[], ids: string[]) {
   const itemsById = new Map(items.map((item) => [item.id, item]));
   return ids.map((id) => itemsById.get(id)).filter(Boolean) as T[];
+}
+
+function customMoodJobLabel(customMood: CustomMoodPreset) {
+  return `custom:${customMood.label}`.slice(0, 80);
 }
 
 async function createSignedUrls(bucket: "clips" | "outputs", paths: string[], expiresIn: number) {
@@ -57,6 +83,10 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const clipIds = normaliseClipIds(parsedBody.data.clip_ids);
+    const selectedMood = parsedBody.data.custom_mood ?? parsedBody.data.mood!;
+    const jobMood = parsedBody.data.custom_mood
+      ? customMoodJobLabel(parsedBody.data.custom_mood)
+      : parsedBody.data.mood!;
 
     const { data: clips, error: clipsError } = await supabase
       .from("clips")
@@ -76,7 +106,7 @@ router.post("/", requireAuth, async (req, res) => {
       .from("jobs")
       .insert({
         user_id: user.id,
-        mood: parsedBody.data.mood,
+        mood: jobMood,
         clip_ids: clipIds,
         status: "queued",
         output_paths: [],
@@ -91,7 +121,7 @@ router.post("/", requireAuth, async (req, res) => {
 
     await enqueueGradingJob({
       jobId: job.id,
-      mood: parsedBody.data.mood,
+      mood: selectedMood as Mood | CustomMoodPreset,
       clipIds,
     });
 

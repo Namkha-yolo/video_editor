@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Mood, MoodPreset } from "../../../shared/types/mood.js";
+import type { CustomMoodPreset, Mood, MoodPreset } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 import { reserveClaudeRateLimit } from "./rateLimiters.js";
+
+export type MoodInput = Mood | CustomMoodPreset;
 
 export const moodPresets: Record<Mood, MoodPreset> = {
   nostalgic: {
@@ -133,12 +135,20 @@ function getAnthropicClient() {
   return new Anthropic({ apiKey });
 }
 
+function isCustomMoodPreset(mood: MoodInput): mood is CustomMoodPreset {
+  return typeof mood === "object" && mood !== null && "grading" in mood;
+}
+
+function resolveMoodPreset(mood: MoodInput): MoodPreset | CustomMoodPreset {
+  return isCustomMoodPreset(mood) ? mood : moodPresets[mood];
+}
+
 function getVignetteDenominator(strength: number) {
   return clamp(Math.round(8 - strength * 4), 4, 8);
 }
 
-function buildPrompt(mood: Mood, clips: ClipAnalysis[]): string {
-  const preset = moodPresets[mood];
+function buildPrompt(mood: MoodInput, clips: ClipAnalysis[]): string {
+  const preset = resolveMoodPreset(mood);
 
   const clipDescriptions = clips
     .map(
@@ -181,7 +191,7 @@ Respond with ONLY a JSON array, no markdown, no explanation. Each element must h
 }
 
 export async function generateGradingFilters(
-  mood: Mood,
+  mood: MoodInput,
   clips: ClipAnalysis[],
   options: GenerateGradingFiltersOptions = {}
 ): Promise<ClipGradingResult[]> {
@@ -234,8 +244,8 @@ export async function generateGradingFilters(
   return results;
 }
 
-export function buildAdaptiveFallbackFilters(mood: Mood, clip: ClipAnalysis): string {
-  const grading = moodPresets[mood].grading;
+export function buildAdaptiveFallbackFilters(mood: MoodInput, clip: ClipAnalysis): string {
+  const grading = resolveMoodPreset(mood).grading;
   const brightnessAdjustment = clamp((0.5 - clip.brightness) * 0.35, -0.15, 0.15);
   const contrastAdjustment = clamp((0.5 - clip.contrast) * 0.4, -0.2, 0.2);
   const saturationAdjustment = clamp((0.55 - clip.contrast) * 0.15, -0.1, 0.1);
@@ -263,8 +273,8 @@ export function buildAdaptiveFallbackFilters(mood: Mood, clip: ClipAnalysis): st
   return parts.join(",");
 }
 
-export function buildFallbackFilters(mood: Mood): string {
-  const grading = moodPresets[mood].grading;
+export function buildFallbackFilters(mood: MoodInput): string {
+  const grading = resolveMoodPreset(mood).grading;
 
   return buildAdaptiveFallbackFilters(mood, {
     clip_id: "fallback",
