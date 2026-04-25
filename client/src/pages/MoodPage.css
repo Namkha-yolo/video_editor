@@ -183,6 +183,199 @@
   margin: 0;
 }
 
+.custom-mood-panel {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+}
+
+.custom-mood-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.custom-mood-panel__title {
+  margin: 0;
+  color: #f9fafb;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.custom-mood-panel__subtitle {
+  margin: 6px 0 0;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.custom-mood-panel__save,
+.custom-mood-card__delete {
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.custom-mood-panel__save:hover {
+  background: #1d4ed8;
+}
+
+.custom-mood-name {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #d1d5db;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.custom-mood-name input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  color: #f9fafb;
+  font-size: 14px;
+  outline: none;
+}
+
+.custom-mood-name input:focus {
+  border-color: #3b82f6;
+}
+
+.custom-mood-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.custom-mood-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-mood-control__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #d1d5db;
+  font-size: 13px;
+}
+
+.custom-mood-control__top strong {
+  color: #f9fafb;
+  font-weight: 700;
+}
+
+.custom-mood-control input[type="range"] {
+  width: 100%;
+  accent-color: #38bdf8;
+}
+
+.custom-mood-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.custom-mood-saved__title {
+  margin: 0;
+  color: #f9fafb;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.custom-mood-saved__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.custom-mood-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  background: #111827;
+  overflow: hidden;
+}
+
+.custom-mood-card--selected {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
+.custom-mood-card__select {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.custom-mood-card__name {
+  max-width: 100%;
+  color: #f9fafb;
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-mood-card__meta {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.custom-mood-card__delete {
+  align-self: center;
+  margin-right: 8px;
+  padding: 7px 10px;
+  background: transparent;
+  border-color: #374151;
+  color: #d1d5db;
+}
+
+.custom-mood-card__delete:hover {
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+@media (max-width: 600px) {
+  .custom-mood-panel__header {
+    flex-direction: column;
+  }
+
+  .custom-mood-controls,
+  .custom-mood-saved__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Start button */
 .mood-start-btn {
   padding: 12px 40px;
@@ -270,4 +463,47 @@
 
 .layout--light .mood-no-results {
   color: #9ca3af;
+}
+
+.layout--light .custom-mood-panel {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.layout--light .custom-mood-panel__title,
+.layout--light .custom-mood-saved__title,
+.layout--light .custom-mood-control__top strong,
+.layout--light .custom-mood-card__name {
+  color: #111827;
+}
+
+.layout--light .custom-mood-panel__subtitle,
+.layout--light .custom-mood-control__top,
+.layout--light .custom-mood-card__meta {
+  color: #6b7280;
+}
+
+.layout--light .custom-mood-name {
+  color: #374151;
+}
+
+.layout--light .custom-mood-name input,
+.layout--light .custom-mood-card {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.layout--light .custom-mood-name input:focus {
+  border-color: #2563eb;
+}
+
+.layout--light .custom-mood-card--selected {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.14);
+}
+
+.layout--light .custom-mood-card__delete {
+  color: #4b5563;
+  border-color: #d1d5db;
 }

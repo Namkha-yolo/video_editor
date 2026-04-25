@@ -122,7 +122,7 @@ router.post(
       console.error("Upload error:", error);
 
       if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ error: "File too large. Maximum size is 500MB." });
+        return res.status(400).json({ error: "File too large. Maximum size is 50MB." });
       }
 
       if (error.message?.includes("Invalid file type")) {

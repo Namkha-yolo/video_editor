@@ -28,6 +28,27 @@ export async function run() {
       },
     },
     {
+      name: "custom mood presets can build fallback filters",
+      run: () => {
+        const filters = buildFallbackFilters({
+          id: "my-look",
+          label: "My Look",
+          grading: {
+            temperature: 6200,
+            saturation: 1.35,
+            contrast: 1.2,
+            brightness: 0.04,
+            vignette: 0.35,
+            grain: 7,
+          },
+        });
+
+        assert.match(filters, /eq=brightness=/);
+        assert.match(filters, /colortemperature=temperature=/);
+        assert.match(filters, /noise=c0s=7/);
+      },
+    },
+    {
       name: "adaptive fallback filters change per clip analysis",
       run: () => {
         const brightClip = buildAdaptiveFallbackFilters("dreamy", {

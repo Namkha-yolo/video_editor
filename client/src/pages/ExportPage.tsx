@@ -38,7 +38,12 @@ function gradedFileName(clip: JobClip, mood: string) {
   const dotIndex = clip.file_name.lastIndexOf(".");
   const base = dotIndex > 0 ? clip.file_name.slice(0, dotIndex) : clip.file_name;
   const ext = dotIndex > 0 ? clip.file_name.slice(dotIndex) : ".mp4";
-  return `${base}-${mood}${ext}`;
+  const safeMood = mood
+    .replace(/^custom:/, "custom-")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  return `${base}-${safeMood || "graded"}${ext}`;
 }
 
 export default function ExportPage() {
