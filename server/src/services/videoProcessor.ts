@@ -1,11 +1,6 @@
 import { supabase } from "../config/supabase.js";
 import { emitJobProgress } from "./jobEvents.js";
-import {
-  buildAdaptiveFallbackFilters,
-  generateGradingFilters,
-  type ClipGradingResult,
-} from "./moodEngine.js";
-import { ClaudeRateLimitError } from "./rateLimiters.js";
+import { buildExposureAdjustment, type ExposureAdjustment } from "./moodEngine.js";
 import type { Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 
@@ -58,8 +53,7 @@ export interface VideoProcessorDependencies {
   fetchImpl: typeof fetch;
   pipelineUrl: string;
   emitProgress: typeof emitJobProgress;
-  generateFilters: typeof generateGradingFilters;
-  buildFallback: typeof buildAdaptiveFallbackFilters;
+  computeExposure: typeof buildExposureAdjustment;
   now: () => string;
 }
 
@@ -71,8 +65,7 @@ function getDependencies(
     fetchImpl: fetch,
     pipelineUrl: process.env.AI_PIPELINE_URL || "http://localhost:8000",
     emitProgress: emitJobProgress,
-    generateFilters: generateGradingFilters,
-    buildFallback: buildAdaptiveFallbackFilters,
+    computeExposure: buildExposureAdjustment,
     now: () => new Date().toISOString(),
     ...overrides,
   };
@@ -94,14 +87,14 @@ function buildOutputPath(jobId: string, clip: ClipRecord) {
   return `${clip.user_id}/${jobId}/${clip.id}-graded.${extension}`;
 }
 
-function createFallbackAnalyses(clips: ClipRecord[]): ClipAnalysis[] {
-  return clips.map((clip) => ({
+function neutralAnalysis(clip: ClipRecord): ClipAnalysis {
+  return {
     clip_id: clip.id,
     brightness: 0.5,
     contrast: 0.5,
     dominant_colors: [],
     color_temperature: 5500,
-  }));
+  };
 }
 
 async function readErrorMessage(response: Response) {
@@ -116,7 +109,7 @@ async function requestAnalysis(
   index: number,
   total: number,
   dependencies: VideoProcessorDependencies
-) {
+): Promise<ClipAnalysis> {
   dependencies.emitProgress({
     job_id: jobId,
     status: "analyzing",
@@ -142,63 +135,16 @@ async function requestAnalysis(
   return (await response.json()) as ClipAnalysis;
 }
 
-function mergeGradingResults(
-  mood: Mood,
-  analyses: ClipAnalysis[],
-  generatedResults: ClipGradingResult[],
-  buildFallback: typeof buildAdaptiveFallbackFilters
-) {
-  const generatedByClipId = new Map(generatedResults.map((result) => [result.clip_id, result.filters]));
-
-  return analyses.map((analysis) => ({
-    clip_id: analysis.clip_id,
-    filters: generatedByClipId.get(analysis.clip_id) || buildFallback(mood, analysis),
-  }));
-}
-
-async function resolveGradingResults(
-  mood: Mood,
-  analyses: ClipAnalysis[],
-  requesterId: string,
-  dependencies: VideoProcessorDependencies,
-  jobId: string
-) {
-  try {
-    const generatedResults = await dependencies.generateFilters(mood, analyses, {
-      requesterId,
-    });
-    return mergeGradingResults(mood, analyses, generatedResults, dependencies.buildFallback);
-  } catch (error: any) {
-    const fallbackResults = analyses.map((analysis) => ({
-      clip_id: analysis.clip_id,
-      filters: dependencies.buildFallback(mood, analysis),
-    }));
-
-    const message =
-      error instanceof ClaudeRateLimitError
-        ? `Claude rate limit reached, using fallback grading filters. Retry after ${error.retryAfterSeconds}s.`
-        : `Claude unavailable, using fallback grading filters: ${error.message}`;
-
-    dependencies.emitProgress({
-      job_id: jobId,
-      status: "analyzing",
-      total_clips: analyses.length,
-      message,
-    });
-
-    return fallbackResults;
-  }
-}
-
 async function requestGrade(
   jobId: string,
+  mood: Mood,
   clip: ClipRecord,
   signedUrl: string,
-  filters: string,
+  exposure: ExposureAdjustment,
   index: number,
   total: number,
   dependencies: VideoProcessorDependencies
-) {
+): Promise<Buffer> {
   dependencies.emitProgress({
     job_id: jobId,
     status: "grading",
@@ -213,7 +159,10 @@ async function requestGrade(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       signed_url: signedUrl,
-      filters,
+      mood,
+      brightness: exposure.brightness,
+      contrast: exposure.contrast,
+      saturation: exposure.saturation,
     }),
   });
 
@@ -254,17 +203,13 @@ export async function processGradingJob(
           throw new Error(`Failed to generate signed URL for clip ${clip.id}`);
         }
 
-        return {
-          clip,
-          signedUrl: data.signedUrl,
-        };
+        return { clip, signedUrl: data.signedUrl };
       })
     );
 
-    let analyses: ClipAnalysis[] = [];
-
-    try {
-      for (const [index, signedClip] of signedClips.entries()) {
+    const analyses: ClipAnalysis[] = [];
+    for (const [index, signedClip] of signedClips.entries()) {
+      try {
         analyses.push(
           await requestAnalysis(
             jobId,
@@ -275,26 +220,18 @@ export async function processGradingJob(
             dependencies
           )
         );
+      } catch (analysisError: any) {
+        dependencies.emitProgress({
+          job_id: jobId,
+          status: "analyzing",
+          clip_id: signedClip.clip.id,
+          clip_index: index + 1,
+          total_clips: signedClips.length,
+          message: `Analysis unavailable for clip ${index + 1}, using neutral exposure: ${analysisError.message}`,
+        });
+        analyses.push(neutralAnalysis(signedClip.clip));
       }
-    } catch (error: any) {
-      dependencies.emitProgress({
-        job_id: jobId,
-        status: "analyzing",
-        total_clips: signedClips.length,
-        message: `AI analysis unavailable, using fallback analysis: ${error.message}`,
-      });
-
-      analyses = createFallbackAnalyses(orderedClips);
     }
-
-    const gradingResults = await resolveGradingResults(
-      mood,
-      analyses,
-      orderedClips[0]?.user_id || jobId,
-      dependencies,
-      jobId
-    );
-    const filtersByClipId = new Map(gradingResults.map((result) => [result.clip_id, result.filters]));
 
     await dependencies.supabaseClient
       .from("jobs")
@@ -308,16 +245,18 @@ export async function processGradingJob(
     const outputPaths: string[] = [];
 
     for (const [index, signedClip] of signedClips.entries()) {
-      const filters = filtersByClipId.get(signedClip.clip.id) || dependencies.buildFallback(mood, analyses[index]);
+      const exposure = dependencies.computeExposure(mood, analyses[index]);
       const gradedVideo = await requestGrade(
         jobId,
+        mood,
         signedClip.clip,
         signedClip.signedUrl,
-        filters,
+        exposure,
         index + 1,
         signedClips.length,
         dependencies
       );
+
       const outputPath = buildOutputPath(jobId, signedClip.clip);
       const { error: uploadError } = await dependencies.supabaseClient.storage
         .from("outputs")

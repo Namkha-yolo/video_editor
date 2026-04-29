@@ -7,12 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/server/src/index.js",
-    "lint": "eslint .",
-    "test": "npm run build && node tests/run.mjs",
-    "test:week3": "npx tsx test-week3.ts"
+    "test": "npm run build && node tests/run.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.0",
     "@supabase/supabase-js": "^2.45.0",
     "axios": "^1.7.3",
     "bullmq": "^5.10.3",

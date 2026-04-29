@@ -1,0 +1,87 @@
+.processing-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  text-align: center;
+}
+
+.processing-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.processing-status {
+  font-size: 1.1rem;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.processing-clip-label {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.processing-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.processing-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #a855f7);
+  border-radius: 999px;
+  transition: width 0.3s ease-out;
+}
+
+.processing-percent {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.processing-message {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin: 0.25rem 0 0;
+  max-width: 480px;
+}
+
+.processing-error {
+  color: #f87171;
+  font-size: 0.95rem;
+  margin: 0;
+  max-width: 480px;
+}
+
+.processing-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.processing-btn {
+  background: #6366f1;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.processing-btn:hover {
+  background: #4f46e5;
+}

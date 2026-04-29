@@ -13,7 +13,6 @@ env:
   VITE_SUPABASE_URL: https://example.supabase.co
   VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature
   SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature
-  ANTHROPIC_API_KEY: sk-ant-test
   REDIS_URL: redis://127.0.0.1:6379
   AI_PIPELINE_URL: http://127.0.0.1:8000
 
@@ -73,8 +72,18 @@ jobs:
             ai-pipeline/services/__init__.py \
             ai-pipeline/services/analyzer.py \
             ai-pipeline/services/grader.py \
+            ai-pipeline/services/mood_grades.py \
+            ai-pipeline/scripts/build_luts.py \
             ai-pipeline/utils/__init__.py \
             ai-pipeline/utils/ffmpeg.py
+
+      - name: Verify LUT bundle is up to date
+        run: |
+          python -m pip install numpy
+          python ai-pipeline/scripts/build_luts.py --out /tmp/luts-fresh
+          for f in nostalgic cinematic hype chill dreamy energetic; do
+            diff -q "ai-pipeline/luts/$f.cube" "/tmp/luts-fresh/$f.cube"
+          done
 
   docker-build:
     name: Docker Compose Build

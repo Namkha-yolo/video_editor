@@ -40,16 +40,25 @@ const isAcceptedVideoFile = (file: File) => {
 
 const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
   const previewUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.src = previewUrl;
 
   try {
-    const video = document.createElement("video");
-    video.preload = "auto";
-    video.src = previewUrl;
-
     await new Promise<void>((resolve, reject) => {
-      video.onloadeddata = () => resolve();
+      video.onloadedmetadata = () => resolve();
       video.onerror = () => reject(new Error("Unable to load video"));
     });
+
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      const seekTarget = Math.min(video.duration * 0.1, 0.5);
+      await new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error("Failed to seek video"));
+        video.currentTime = seekTarget;
+      });
+    }
 
     let thumbnailUrl: string | null = null;
     try {
@@ -59,7 +68,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
       const context = canvas.getContext("2d");
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        thumbnailUrl = canvas.toDataURL("image/jpeg", 1.0);
+        thumbnailUrl = canvas.toDataURL("image/jpeg", 0.8);
       }
     } catch {
       thumbnailUrl = null;
@@ -67,7 +76,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
 
     return {
       thumbnailUrl,
-      duration: 0,
+      duration: Number.isFinite(video.duration) ? video.duration : 0,
       width: video.videoWidth,
       height: video.videoHeight,
     };
@@ -78,6 +87,8 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
       width: 0,
       height: 0,
     };
+  } finally {
+    URL.revokeObjectURL(previewUrl);
   }
 };
 
@@ -186,9 +197,6 @@ export default function UploadPage() {
         throw new Error("Upload completed without clip data");
       }
 
-      // Persist uploaded clip in global store for Mood page job creation.
-      addClip(clip);
-
       await sleep(100);
       updateUploadItem(localId, (item) => ({
         ...item,
@@ -203,6 +211,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
+      // Persist uploaded clip in global store for Mood page job creation.
       addClip(clip);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";

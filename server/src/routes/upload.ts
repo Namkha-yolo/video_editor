@@ -22,29 +22,16 @@ const upload = multer({
   },
 });
 
-function toArrayBuffer(buffer: Buffer) {
-  return buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength
-  ) as ArrayBuffer;
-}
-
-async function extractMetadata(
-  file: Express.Multer.File
+async function probeViaSignedUrl(
+  signedUrl: string
 ): Promise<{ duration: number; width: number; height: number; fps: number }> {
   const pipelineUrl = process.env.AI_PIPELINE_URL || "http://localhost:8000";
 
   try {
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([toArrayBuffer(file.buffer)], { type: file.mimetype }),
-      file.originalname
-    );
-
     const response = await fetch(`${pipelineUrl}/probe`, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signed_url: signedUrl }),
     });
 
     if (!response.ok) {
@@ -92,7 +79,14 @@ router.post(
           return res.status(500).json({ error: `Failed to upload ${file.originalname}` });
         }
 
-        const metadata = await extractMetadata(file);
+        const { data: signed, error: signedError } = await supabase.storage
+          .from("clips")
+          .createSignedUrl(storagePath, 300);
+        const metadata =
+          signed?.signedUrl && !signedError
+            ? await probeViaSignedUrl(signed.signedUrl)
+            : { duration: 0, width: 0, height: 0, fps: 0 };
+
         const { data: clip, error: dbError } = await supabase
           .from("clips")
           .insert({

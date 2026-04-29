@@ -4,27 +4,36 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
 from services.analyzer import analyze_clip
-from services.grader import grade_clip, GradingError
-from utils.ffmpeg import probe, validate_video
+from services.grader import ExposureAdjustment, grade_clip, GradingError
+from services.mood_grades import VALID_MOODS
+from utils.ffmpeg import probe
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ClipVibe AI Pipeline")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+import os as _os
+
+_cors_origins = [
+    origin.strip()
+    for origin in (_os.environ.get("CORS_ALLOWED_ORIGINS") or "").split(",")
+    if origin.strip()
+]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
 DOWNLOAD_TIMEOUT = 300  # seconds — generous for large files
@@ -40,9 +49,16 @@ class AnalyzeRequest(BaseModel):
     clip_id: str = ""
 
 
+class ProbeRequest(BaseModel):
+    signed_url: str
+
+
 class GradeRequest(BaseModel):
     signed_url: str
-    filters: str
+    mood: str
+    brightness: float = 0.0
+    contrast: float = 1.0
+    saturation: float = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -174,21 +190,9 @@ async def analyze(body: AnalyzeRequest):
 
 
 @app.post("/probe", response_model=ProbeResponse)
-async def probe_clip(
-    file: UploadFile = File(...),
-):
+async def probe_clip(body: ProbeRequest):
     """Extract video metadata (duration, resolution, fps, codec) via FFprobe."""
-    ext = Path(file.filename or "video.mp4").suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
-
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp_path = tmp.name
-        content = await file.read()
-        tmp.write(content)
+    tmp_path = await _download_to_temp(body.signed_url)
 
     try:
         metadata = probe(tmp_path)
@@ -204,21 +208,22 @@ async def probe_clip(
 
 @app.post("/grade")
 async def grade(body: GradeRequest):
-    """Apply FFmpeg color grading filters to a clip and return the graded file.
+    if body.mood not in VALID_MOODS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown mood: {body.mood!r}. Valid: {VALID_MOODS}",
+        )
 
-    Accepts a Supabase signed URL + FFmpeg filter string, downloads the video,
-    applies the filters, and streams back the graded file.
-
-    Validates the video file before processing (corrupt, empty, too long).
-    Uses dynamic timeouts scaled to video duration.
-    """
-    if not body.filters or not body.filters.strip():
-        raise HTTPException(status_code=400, detail="filters must not be empty")
+    exposure = ExposureAdjustment(
+        brightness=body.brightness,
+        contrast=body.contrast,
+        saturation=body.saturation,
+    )
 
     tmp_path = await _download_to_temp(body.signed_url)
 
     try:
-        output_path = grade_clip(tmp_path, body.filters)
+        output_path = grade_clip(tmp_path, body.mood, exposure=exposure)
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(
             output_path,
@@ -229,7 +234,6 @@ async def grade(body: GradeRequest):
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
-        # Covers: corrupt file, empty filter, too long, invalid dimensions
         raise HTTPException(status_code=422, detail=str(e))
     except GradingError as e:
         raise HTTPException(status_code=500, detail=str(e))

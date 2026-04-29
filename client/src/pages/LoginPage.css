@@ -233,3 +233,38 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.login-feedback {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.login-feedback--error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: rgb(252, 165, 165);
+}
+
+.login-feedback--success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: rgb(110, 231, 183);
+}
+
+.login-link-button {
+  background: none;
+  border: none;
+  color: rgb(125, 211, 252);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.login-link-button:hover {
+  color: rgb(186, 230, 253);
+}

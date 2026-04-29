@@ -102,58 +102,10 @@ export function buildRateLimitHeaders(result: RateLimitResult) {
   };
 }
 
-export class ClaudeRateLimitError extends Error {
-  readonly name = "ClaudeRateLimitError";
-
-  constructor(
-    public readonly scope: "user" | "global",
-    public readonly retryAfterSeconds: number,
-    public readonly limit: number,
-    public readonly resetAt: number
-  ) {
-    super(`Claude rate limit reached for ${scope} scope. Retry after ${retryAfterSeconds}s.`);
-  }
-}
-
-const claudeWindowMs = readPositiveInt("CLAUDE_RATE_LIMIT_WINDOW_MS", 60_000);
-const claudeUserLimiter = new FixedWindowRateLimiter({
-  limit: readPositiveInt("CLAUDE_RATE_LIMIT_PER_USER", 3),
-  windowMs: claudeWindowMs,
-});
-const claudeGlobalLimiter = new FixedWindowRateLimiter({
-  limit: readPositiveInt("CLAUDE_RATE_LIMIT_GLOBAL", 20),
-  windowMs: claudeWindowMs,
-});
 const jobCreationLimiter = new FixedWindowRateLimiter({
   limit: readPositiveInt("JOB_CREATE_RATE_LIMIT_MAX", 5),
   windowMs: readPositiveInt("JOB_CREATE_RATE_LIMIT_WINDOW_MS", 60_000),
 });
-
-export function reserveClaudeRateLimit(requesterId: string, now = Date.now()) {
-  const requesterKey = requesterId || "anonymous";
-  const globalPreview = claudeGlobalLimiter.check("global", now);
-  if (!globalPreview.allowed) {
-    throw new ClaudeRateLimitError(
-      "global",
-      globalPreview.retryAfterSeconds,
-      globalPreview.limit,
-      globalPreview.resetAt
-    );
-  }
-
-  const userPreview = claudeUserLimiter.check(requesterKey, now);
-  if (!userPreview.allowed) {
-    throw new ClaudeRateLimitError(
-      "user",
-      userPreview.retryAfterSeconds,
-      userPreview.limit,
-      userPreview.resetAt
-    );
-  }
-
-  claudeGlobalLimiter.consume("global", now);
-  return claudeUserLimiter.consume(requesterKey, now);
-}
 
 export function consumeJobCreationRateLimit(requesterId: string, now = Date.now()) {
   return jobCreationLimiter.consume(requesterId || "anonymous", now);
@@ -161,10 +113,6 @@ export function consumeJobCreationRateLimit(requesterId: string, now = Date.now(
 
 export function getRateLimiterConfig() {
   return {
-    claude: {
-      per_user: claudeUserLimiter.getConfig(),
-      global: claudeGlobalLimiter.getConfig(),
-    },
     jobs: {
       create: jobCreationLimiter.getConfig(),
     },
@@ -172,7 +120,5 @@ export function getRateLimiterConfig() {
 }
 
 export function resetRateLimitersForTests() {
-  claudeUserLimiter.reset();
-  claudeGlobalLimiter.reset();
   jobCreationLimiter.reset();
 }

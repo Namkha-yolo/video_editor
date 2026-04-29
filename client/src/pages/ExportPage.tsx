@@ -12,6 +12,7 @@ interface JobClip {
   duration: number | null;
   original_url: string | null;
   output_url: string | null;
+  output_download_url: string | null;
 }
 
 interface JobDetail {
@@ -23,22 +24,13 @@ interface JobDetail {
   clips: JobClip[];
 }
 
-function triggerDownload(url: string, fileName: string) {
+function triggerDownload(url: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = fileName;
-  anchor.target = "_blank";
   anchor.rel = "noopener";
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-}
-
-function gradedFileName(clip: JobClip, mood: string) {
-  const dotIndex = clip.file_name.lastIndexOf(".");
-  const base = dotIndex > 0 ? clip.file_name.slice(0, dotIndex) : clip.file_name;
-  const ext = dotIndex > 0 ? clip.file_name.slice(dotIndex) : ".mp4";
-  return `${base}-${mood}${ext}`;
 }
 
 export default function ExportPage() {
@@ -82,7 +74,7 @@ export default function ExportPage() {
   }, [jobId]);
 
   const downloadableClips = useMemo(
-    () => (job?.clips ?? []).filter((c) => Boolean(c.output_url)),
+    () => (job?.clips ?? []).filter((c) => Boolean(c.output_download_url)),
     [job]
   );
 
@@ -91,8 +83,8 @@ export default function ExportPage() {
     setDownloadingAll(true);
     try {
       for (const clip of downloadableClips) {
-        if (!clip.output_url) continue;
-        triggerDownload(clip.output_url, gradedFileName(clip, job.mood));
+        if (!clip.output_download_url) continue;
+        triggerDownload(clip.output_download_url);
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
     } finally {
@@ -215,10 +207,9 @@ export default function ExportPage() {
               <button
                 type="button"
                 className="export-btn"
-                disabled={!clip.output_url}
+                disabled={!clip.output_download_url}
                 onClick={() =>
-                  clip.output_url &&
-                  triggerDownload(clip.output_url, gradedFileName(clip, job.mood))
+                  clip.output_download_url && triggerDownload(clip.output_download_url)
                 }
               >
                 Download

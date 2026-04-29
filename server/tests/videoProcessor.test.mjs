@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 
 import { processGradingJob } from "../dist/server/src/services/videoProcessor.js";
-import { buildAdaptiveFallbackFilters } from "../dist/server/src/services/moodEngine.js";
-import { ClaudeRateLimitError } from "../dist/server/src/services/rateLimiters.js";
+import { buildExposureAdjustment } from "../dist/server/src/services/moodEngine.js";
 import { runSuite } from "./harness.mjs";
 
 function createSupabaseMock() {
@@ -108,7 +107,7 @@ function createFetchMock(options = {}) {
     }
 
     if (url.endsWith("/grade")) {
-      return new Response(Buffer.from(`graded:${body.filters}`), {
+      return new Response(Buffer.from(`graded:${body.mood}`), {
         status: 200,
         headers: { "Content-Type": "video/mp4" },
       });
@@ -123,7 +122,7 @@ function createFetchMock(options = {}) {
 export async function run() {
   return runSuite("videoProcessor", [
     {
-      name: "processor analyzes, grades, uploads, and completes a job",
+      name: "processor analyzes, grades with mood + exposure, and completes",
       run: async () => {
         const { client, updates, uploads, removals } = createSupabaseMock();
         const { fetchMock, requests } = createFetchMock();
@@ -136,32 +135,37 @@ export async function run() {
           emitProgress: (payload) => {
             progressEvents.push(payload);
           },
-          generateFilters: async () => [
-            {
-              clip_id: "clip-1",
-              filters: "eq=brightness=0.1:contrast=1.2:saturation=0.8,colortemperature=temperature=4800",
-            },
-            {
-              clip_id: "clip-2",
-              filters: "eq=brightness=0.02:contrast=1.35:saturation=0.78,colortemperature=temperature=5000",
-            },
-          ],
-          buildFallback: buildAdaptiveFallbackFilters,
+          computeExposure: buildExposureAdjustment,
           now: () => "2026-03-09T12:00:00.000Z",
         });
+
+        const gradeRequests = requests.filter((r) => r.url.endsWith("/grade"));
+        const analyzeRequests = requests.filter((r) => r.url.endsWith("/analyze"));
 
         assert.deepEqual(outputPaths, [
           "user-1/job-1/clip-1-graded.mp4",
           "user-1/job-1/clip-2-graded.mp4",
         ]);
-        assert.equal(requests.filter((request) => request.url.endsWith("/analyze")).length, 2);
-        assert.equal(requests.filter((request) => request.url.endsWith("/grade")).length, 2);
-        assert.ok(requests.every((request) => !request.body?.file_url));
+        assert.equal(analyzeRequests.length, 2);
+        assert.equal(gradeRequests.length, 2);
         assert.ok(
-          requests
-            .filter((request) => request.url.endsWith("/analyze"))
-            .every((request) => request.body?.signed_url)
+          gradeRequests.every((r) => r.body.mood === "cinematic"),
+          "every grade request carries the job's mood"
         );
+        assert.ok(
+          gradeRequests.every(
+            (r) =>
+              typeof r.body.brightness === "number" &&
+              typeof r.body.contrast === "number" &&
+              typeof r.body.saturation === "number"
+          ),
+          "every grade request carries exposure params"
+        );
+        // clip-1 is bright (0.8) → expect negative brightness adjustment.
+        const firstClip = gradeRequests.find(
+          (r) => r.url.endsWith("/grade") && r.body.signed_url.includes("first.mp4")
+        );
+        assert.ok(firstClip.body.brightness < 0, "bright clip pulled down");
         assert.equal(updates[0]?.status, "grading");
         assert.equal(updates[1]?.status, "complete");
         assert.equal(uploads.length, 2);
@@ -170,10 +174,10 @@ export async function run() {
       },
     },
     {
-      name: "processor falls back to local filters when Claude is unavailable",
+      name: "processor falls back to neutral exposure when /analyze fails",
       run: async () => {
         const { client } = createSupabaseMock();
-        const { fetchMock, requests } = createFetchMock();
+        const { fetchMock, requests } = createFetchMock({ failAnalyze: true });
         const progressEvents = [];
 
         await processGradingJob("job-2", "dreamy", ["clip-1", "clip-2"], {
@@ -183,44 +187,22 @@ export async function run() {
           emitProgress: (payload) => {
             progressEvents.push(payload);
           },
-          generateFilters: async () => {
-            throw new Error("Claude offline");
-          },
-          buildFallback: buildAdaptiveFallbackFilters,
+          computeExposure: buildExposureAdjustment,
           now: () => "2026-03-09T12:00:00.000Z",
         });
 
-        const gradeRequests = requests.filter((request) => request.url.endsWith("/grade"));
-
+        const gradeRequests = requests.filter((r) => r.url.endsWith("/grade"));
         assert.equal(gradeRequests.length, 2);
-        assert.ok(gradeRequests.every((request) => /eq=brightness=/.test(request.body.filters)));
-        assert.ok(progressEvents.some((event) => event.message?.includes("fallback grading filters")));
-      },
-    },
-    {
-      name: "processor falls back cleanly when Claude rate limit is hit",
-      run: async () => {
-        const { client } = createSupabaseMock();
-        const { fetchMock, requests } = createFetchMock();
-        const progressEvents = [];
-
-        await processGradingJob("job-3", "hype", ["clip-1", "clip-2"], {
-          supabaseClient: client,
-          fetchImpl: fetchMock,
-          pipelineUrl: "http://pipeline.local",
-          emitProgress: (payload) => {
-            progressEvents.push(payload);
-          },
-          generateFilters: async () => {
-            throw new ClaudeRateLimitError("user", 45, 1, Date.now() + 45_000);
-          },
-          buildFallback: buildAdaptiveFallbackFilters,
-          now: () => "2026-03-09T12:00:00.000Z",
-        });
-
-        const gradeRequests = requests.filter((request) => request.url.endsWith("/grade"));
-        assert.equal(gradeRequests.length, 2);
-        assert.ok(progressEvents.some((event) => event.message?.includes("Retry after 45s")));
+        assert.ok(
+          gradeRequests.every(
+            (r) => r.body.brightness === 0 && r.body.contrast === 1 && r.body.saturation === 1
+          ),
+          "neutral exposure on analysis failure"
+        );
+        assert.ok(
+          progressEvents.some((event) => event.message?.includes("neutral exposure")),
+          "emits progress message about fallback"
+        );
       },
     },
   ]);

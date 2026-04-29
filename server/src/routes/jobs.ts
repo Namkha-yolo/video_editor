@@ -21,10 +21,19 @@ function orderByIds<T extends { id: string }>(items: T[], ids: string[]) {
   return ids.map((id) => itemsById.get(id)).filter(Boolean) as T[];
 }
 
-async function createSignedUrls(bucket: "clips" | "outputs", paths: string[], expiresIn: number) {
+async function createSignedUrls(
+  bucket: "clips" | "outputs",
+  paths: string[],
+  expiresIn: number,
+  downloadNames?: (string | null)[]
+) {
   return Promise.all(
-    paths.map(async (storagePath) => {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storagePath, expiresIn);
+    paths.map(async (storagePath, index) => {
+      const downloadName = downloadNames?.[index];
+      const options = downloadName ? { download: downloadName } : undefined;
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(storagePath, expiresIn, options);
       if (error || !data?.signedUrl) {
         return null;
       }
@@ -32,6 +41,13 @@ async function createSignedUrls(bucket: "clips" | "outputs", paths: string[], ex
       return data.signedUrl;
     })
   );
+}
+
+function gradedDownloadName(fileName: string, mood: string): string {
+  const dotIndex = fileName.lastIndexOf(".");
+  const base = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
+  const ext = dotIndex > 0 ? fileName.slice(dotIndex) : ".mp4";
+  return `${base}-${mood}${ext}`;
 }
 
 router.post("/", requireAuth, async (req, res) => {
@@ -161,10 +177,16 @@ router.get("/:id", requireAuth, async (req, res) => {
       orderedClips.map((clip: any) => clip.storage_path),
       3600
     );
-    const outputUrls =
-      job.status === "complete" && outputPaths.length > 0
-        ? await createSignedUrls("outputs", outputPaths, 3600)
-        : [];
+    const isComplete = job.status === "complete" && outputPaths.length > 0;
+    const outputUrls = isComplete ? await createSignedUrls("outputs", outputPaths, 3600) : [];
+    const downloadUrls = isComplete
+      ? await createSignedUrls(
+          "outputs",
+          outputPaths,
+          3600,
+          orderedClips.map((clip: any) => gradedDownloadName(clip.file_name, job.mood))
+        )
+      : [];
 
     return res.json({
       ...job,
@@ -174,6 +196,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         duration: clip.duration,
         original_url: originalUrls[index] || null,
         output_url: outputUrls[index] || null,
+        output_download_url: downloadUrls[index] || null,
       })),
       output_urls: outputUrls,
       original_urls: originalUrls,
@@ -214,7 +237,10 @@ router.get("/:id/download", requireAuth, async (req, res) => {
 
     const downloadUrls = await Promise.all(
       outputPaths.map(async (storagePath: string, index: number) => {
-        const { data } = await supabase.storage.from("outputs").createSignedUrl(storagePath, 7200);
+        const downloadName = `clip-${index + 1}-${job.mood}.mp4`;
+        const { data } = await supabase.storage
+          .from("outputs")
+          .createSignedUrl(storagePath, 7200, { download: downloadName });
         return {
           clip_index: index + 1,
           url: data?.signedUrl || "",

@@ -1,0 +1,25 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_\-]{20,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase service role JWT"
+regex = '''eyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]{20,}'''
+keywords = ["eyJ"]
+
+[allowlist]
+paths = [
+  '''(.*?)(jpg|jpeg|png|gif|webp|svg|woff|woff2|cube)$''',
+  '''pnpm-lock\.yaml$''',
+]
+regexes = [
+  '''sk-ant-(test|xxxxxxxxxxxxx|your-api-key-here)''',
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.test\.signature''',
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi[a-z0-9.-]+''',
+]

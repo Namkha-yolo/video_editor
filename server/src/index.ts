@@ -10,12 +10,36 @@ import jobRoutes from "./routes/jobs.js";
 import moodRoutes from "./routes/moods.js";
 import clipRoutes from "./routes/clips.js";
 import { setJobEventEmitter } from "./services/jobEvents.js";
+import { shutdownJobQueue } from "./services/jobQueue.js";
 import { getRateLimiterConfig } from "./services/rateLimiters.js";
+import { redis } from "./config/redis.js";
+
+function parseAllowedOrigins(): string[] {
+  const raw = process.env.CORS_ALLOWED_ORIGINS;
+  if (raw && raw.trim()) {
+    return raw.split(",").map((origin) => origin.trim()).filter(Boolean);
+  }
+  if (process.env.NODE_ENV !== "production") {
+    return ["http://localhost:5173", "http://127.0.0.1:5173"];
+  }
+  return [];
+}
+
+const allowedOrigins = parseAllowedOrigins();
+
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+};
 
 const app: Express = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
-  cors: { origin: "*" },
+  cors: { origin: allowedOrigins.length > 0 ? allowedOrigins : false, credentials: true },
 });
 
 setJobEventEmitter((room, event, payload) => {
@@ -23,7 +47,7 @@ setJobEventEmitter((room, event, payload) => {
 });
 
 app.use(helmet());
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/upload", uploadRoutes);
@@ -49,9 +73,6 @@ app.get("/", (_req, res) => {
       upload: "/api/upload",
       clips: "/api/clips",
       jobs: "/api/jobs",
-    },
-    features: {
-      claude_rate_limiting: true,
     },
     documentation: "See README.md for full API documentation",
   });
@@ -88,3 +109,42 @@ const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+let shuttingDown = false;
+async function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down gracefully...`);
+
+  const deadline = Date.now() + 25_000;
+  const withDeadline = <T>(label: string, work: Promise<T>) =>
+    Promise.race<T | undefined>([
+      work,
+      new Promise<undefined>((resolve) => {
+        const remaining = Math.max(0, deadline - Date.now());
+        setTimeout(() => {
+          console.warn(`${label} did not finish before deadline`);
+          resolve(undefined);
+        }, remaining);
+      }),
+    ]);
+
+  try {
+    await withDeadline("HTTP server close", new Promise<void>((resolve) => httpServer.close(() => resolve())));
+    await withDeadline("Socket.IO close", new Promise<void>((resolve) => io.close(() => resolve())));
+    await withDeadline("Job queue shutdown", shutdownJobQueue());
+    await withDeadline(
+      "Redis quit",
+      redis.quit().catch(() => {
+        redis.disconnect();
+      })
+    );
+  } catch (error: any) {
+    console.error("Shutdown error:", error?.message || error);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => void gracefulShutdown("SIGINT"));

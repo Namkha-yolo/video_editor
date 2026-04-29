@@ -8,7 +8,6 @@
     "dev:server": "pnpm --filter server dev",
     "build:client": "pnpm --filter client build",
     "build:server": "pnpm --filter server build",
-    "lint": "pnpm -r lint",
     "test": "pnpm -r test"
   },
   "engines": {

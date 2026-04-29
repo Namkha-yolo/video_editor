@@ -7,12 +7,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 clipvibe
+
 WORKDIR /app
 
-COPY requirements.txt .
+COPY --chown=clipvibe:clipvibe requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY --chown=clipvibe:clipvibe . .
+
+USER clipvibe
 
 EXPOSE 8000
 
