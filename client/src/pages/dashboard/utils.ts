@@ -11,6 +11,10 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
 export const MOODS: Mood[] = ["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"];
 
 export function formatMood(mood: string) {
+  if (mood.startsWith("custom:")) {
+    return mood.replace(/^custom:/, "Custom: ");
+  }
+
   return mood.charAt(0).toUpperCase() + mood.slice(1);
 }
 

@@ -6,11 +6,14 @@ interface JobCardProps {
   preview: string | null;
   onReRun: (job: DashboardJob) => void;
   onNavigate: (path: string) => void;
+  onDelete: (job: DashboardJob) => void;
+  isDeleting: boolean;
 }
 
-export function JobCard({ job, preview, onReRun, onNavigate }: JobCardProps) {
+export function JobCard({ job, preview, onReRun, onNavigate, onDelete, isDeleting }: JobCardProps) {
   const isComplete = job.status === "complete";
   const isInFlight = job.status === "queued" || job.status === "analyzing" || job.status === "grading";
+  const showErrorTooltip = job.status === "failed" && Boolean(job.error_message);
 
   return (
     <div className="dashboard-row">
@@ -32,13 +35,28 @@ export function JobCard({ job, preview, onReRun, onNavigate }: JobCardProps) {
 
       <div className="dashboard-row-main">
         <div className="dashboard-row-top">
-          <p className="dashboard-row-date">{formatDateTime(job.created_at)}</p>
-          <span className={`status-badge status-badge--${job.status}`}>{STATUS_LABEL[job.status]}</span>
+          <div className="dashboard-row-top-meta">
+            <p className="dashboard-row-date">{formatDateTime(job.created_at)}</p>
+            <span className="status-badge-wrap">
+              <span className={`status-badge status-badge--${job.status}`}>{STATUS_LABEL[job.status]}</span>
+              {showErrorTooltip && <span className="status-badge-tooltip">{job.error_message}</span>}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="dashboard-delete-job-btn"
+            onClick={() => onDelete(job)}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
         </div>
         <p className="dashboard-row-meta">
           Job #{shortJobId(job.id)} | {job.clip_ids.length} clip{job.clip_ids.length !== 1 ? "s" : ""}
         </p>
-        {job.error_message && <p className="dashboard-job-error">{job.error_message}</p>}
+        {job.error_message && !showErrorTooltip && (
+          <p className="dashboard-job-error">{job.error_message}</p>
+        )}
       </div>
 
       <div className="dashboard-actions dashboard-actions--row">

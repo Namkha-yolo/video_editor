@@ -3,16 +3,16 @@ import { createRedisConnection, redis } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
 import { emitJobProgress } from "./jobEvents.js";
 import { processGradingJob } from "./videoProcessor.js";
-import type { Mood } from "../../../shared/types/mood.js";
+import type { MoodInput } from "./moodEngine.js";
 
 export interface GradingJobPayload {
   jobId: string;
-  mood: Mood;
+  mood: MoodInput;
   clipIds: string[];
 }
 
 export interface JobRunnerDependencies {
-  processJob: (jobId: string, mood: Mood, clipIds: string[]) => Promise<unknown>;
+  processJob: (jobId: string, mood: MoodInput, clipIds: string[]) => Promise<unknown>;
   updateJobStatus: (jobId: string, status: "analyzing" | "failed", errorMessage?: string) => Promise<void>;
   emitProgress: typeof emitJobProgress;
 }
