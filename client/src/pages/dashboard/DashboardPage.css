@@ -370,14 +370,19 @@
 }
 
 .dashboard-empty {
+  align-items: center;
   background: rgba(15, 23, 42, 0.6);
   border: 1.5px dashed rgba(59, 130, 246, 0.3);
   border-radius: 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 2rem;
+  padding: 3rem 2rem;
   text-align: center;
+}
+
+.dashboard-empty__art {
+  opacity: 0.9;
 }
 
 .dashboard-empty h2 {

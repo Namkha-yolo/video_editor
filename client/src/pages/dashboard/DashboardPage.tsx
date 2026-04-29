@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useProjectStore } from "@/store/projectStore";
+import { toast } from "@/store/toastStore";
 import type { Clip, Mood } from "@clipvibe/shared";
 import { JobGroupCard } from "./JobGroupCard";
 import { StatusFilters } from "./StatusFilters";
@@ -197,9 +198,9 @@ export default function DashboardPage() {
         delete next[clipId];
         return next;
       });
-      setError(null);
+      toast.success("Clip deleted.");
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to delete clip.");
+      toast.error(err?.response?.data?.error || "Failed to delete clip.");
     } finally {
       setDeletingClipId(null);
     }
@@ -215,9 +216,9 @@ export default function DashboardPage() {
         delete next[job.id];
         return next;
       });
-      setError(null);
+      toast.success("Job deleted.");
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to delete job.");
+      toast.error(err?.response?.data?.error || "Failed to delete job.");
     } finally {
       setDeletingJobId(null);
     }
@@ -328,16 +329,31 @@ export default function DashboardPage() {
 
       {!hasAnyJobHistory ? (
         <div className="dashboard-empty">
+          <svg className="dashboard-empty__art" width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+            <rect x="10" y="28" width="60" height="42" rx="5" fill="rgba(59,130,246,0.1)" stroke="rgba(59,130,246,0.35)" strokeWidth="2"/>
+            <rect x="10" y="16" width="60" height="16" rx="4" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.35)" strokeWidth="2"/>
+            <line x1="21" y1="16" x2="17" y2="32" stroke="rgba(27,180,216,0.55)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="33" y1="16" x2="29" y2="32" stroke="rgba(27,180,216,0.55)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="45" y1="16" x2="41" y2="32" stroke="rgba(27,180,216,0.55)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="57" y1="16" x2="53" y2="32" stroke="rgba(27,180,216,0.55)" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M32 44 L32 62 L54 53 Z" fill="rgba(27,180,216,0.35)" stroke="rgba(27,180,216,0.65)" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
           <h2>No jobs yet</h2>
-          <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
+          <p>Upload clips and choose a mood to create your first grading job.</p>
           <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
             Upload Clips
           </button>
         </div>
       ) : hasNoFilteredResults ? (
         <div className="dashboard-empty dashboard-empty--filtered">
+          <svg className="dashboard-empty__art" width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+            <circle cx="34" cy="34" r="20" fill="rgba(59,130,246,0.1)" stroke="rgba(59,130,246,0.35)" strokeWidth="2.5"/>
+            <line x1="48" y1="48" x2="66" y2="66" stroke="rgba(59,130,246,0.45)" strokeWidth="3.5" strokeLinecap="round"/>
+            <line x1="27" y1="27" x2="41" y2="41" stroke="rgba(239,68,68,0.55)" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="41" y1="27" x2="27" y2="41" stroke="rgba(239,68,68,0.55)" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
           <h2>No matching jobs</h2>
-          <p>Try a different search term or reset filters to see all jobs.</p>
+          <p>Try a different search term or reset your filters to see all jobs.</p>
           {hasSearchOrFilter && (
             <button type="button" className="dashboard-action-btn dashboard-action-btn--secondary" onClick={clearAllFilters}>
               Clear search and filters

@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
+import { toast } from "@/store/toastStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
 import "./UploadPage.css";
@@ -206,6 +207,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
+      toast.success(`${file.name} uploaded successfully.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 
@@ -215,12 +217,25 @@ export default function UploadPage() {
         progress: 0,
         error: message,
       }));
+      toast.error(`${file.name}: ${message}`);
     }
   };
 
   const handleRemove = (item: UploadItem) => {
     setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
     if (item.clipId) removeClip(item.clipId);
+  };
+
+  const handleClearAll = () => {
+    uploads
+      .filter((u) => u.status === "success" || u.status === "error" || u.status === "canceled")
+      .forEach((u) => { if (u.clipId) removeClip(u.clipId); });
+    setUploads((prev) => prev.filter((u) => u.status === "uploading" || u.status === "queued"));
+  };
+
+  const handleRetry = (item: UploadItem) => {
+    setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
+    void uploadSingleFile(item.file);
   };
 
   // the function after drag and drop
@@ -231,6 +246,10 @@ export default function UploadPage() {
   };
 
   const hasSuccessfulUpload = uploads.some((item) => item.status === "success");
+  const successCount = uploads.filter((u) => u.status === "success").length;
+  const hasDoneUploads = uploads.some(
+    (u) => u.status === "success" || u.status === "error" || u.status === "canceled",
+  );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -274,7 +293,23 @@ export default function UploadPage() {
 
       <div className="upload-page__list-panel">
         <div className="upload-page__list-header">
-          <h2 className="upload-page__list-title">Uploaded Clips</h2>
+          <h2 className="upload-page__list-title">
+            Uploaded Clips
+            {uploads.length > 0 && (
+              <span className="upload-page__count-badge">
+                {successCount} / {uploads.length}
+              </span>
+            )}
+          </h2>
+          {hasDoneUploads && (
+            <button
+              className="upload-page__clear-button"
+              type="button"
+              onClick={handleClearAll}
+            >
+              Clear done
+            </button>
+          )}
         </div>
         {uploads.length === 0 ? (
           <p className="upload-page__list-empty">No clips uploaded yet.</p>
@@ -302,14 +337,16 @@ export default function UploadPage() {
                           {" • "}{item.status}
                         </p>
                       </div>
-                      <button
-                        className="upload-page__item-remove"
-                        type="button"
-                        aria-label="Remove clip"
-                        onClick={() => handleRemove(item)}
-                      >
-                        ✕
-                      </button>
+                      {(item.status === "success" || item.status === "error" || item.status === "canceled") && (
+                        <button
+                          className="upload-page__item-remove"
+                          type="button"
+                          aria-label="Remove clip"
+                          onClick={() => handleRemove(item)}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
 
                     {/* check progress */}
@@ -327,6 +364,18 @@ export default function UploadPage() {
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
+                    {item.status === "error" && (
+                      <div className="upload-page__item-error-row">
+                        <p className="upload-page__item-error">{item.error}</p>
+                        <button
+                          className="upload-page__retry-button"
+                          type="button"
+                          onClick={() => handleRetry(item)}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
