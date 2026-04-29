@@ -230,7 +230,8 @@ export default function UploadPage() {
     });
   };
 
-  const hasSuccessfulUpload = uploads.some((item) => item.status === "success");
+  const hasSuccessfulUpload =
+    uploads.length > 0 && uploads.every((item) => item.status === "success");
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -298,8 +299,10 @@ export default function UploadPage() {
                         </p>
                         <p className="upload-page__item-size">
                           {(item.file.size / (1024 * 1024)).toFixed(2)} MB
-                          {item.duration > 0 && ` • ${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, "0")}`}
-                          {" • "}{item.status}
+                          {item.duration > 0 &&
+                            ` • ${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, "0")}`}
+                          {" • "}
+                          {item.status}
                         </p>
                       </div>
                       <button
@@ -337,7 +340,7 @@ export default function UploadPage() {
 
       <div className="upload-page__footer">
         <p className="upload-page__footer-text">
-          Upload at least one clip to continue
+          Continue after every uploaded clip finishes successfully
         </p>
         <button
           className="upload-page__next-button"

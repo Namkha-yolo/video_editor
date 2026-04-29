@@ -14,7 +14,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const setClips = useProjectStore((s) => s.setClips);
   const setSelectedMood = useProjectStore((s) => s.setSelectedMood);
-
+  const setIsProjectActive = useProjectStore((s) => s.setIsProjectActive)
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [clipById, setClipById] = useState<Record<string, Clip>>({});
   const [previewUrlsByJob, setPreviewUrlsByJob] = useState<Record<string, string[]>>({});
@@ -239,6 +239,12 @@ export default function DashboardPage() {
     setSearchQuery("");
   }, []);
 
+  const handleNewProject = useCallback(() => {
+    setIsProjectActive(true);
+    setClips([]);
+    navigate("/upload");
+  }, [navigate, setIsProjectActive]);
+
   if (loading) {
     return (
       <section className="dashboard-page">
@@ -267,7 +273,7 @@ export default function DashboardPage() {
           >
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
-          <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
+          <button type="button" className="dashboard-new-btn" onClick={handleNewProject}>
             + New Project
           </button>
         </div>
@@ -330,7 +336,7 @@ export default function DashboardPage() {
         <div className="dashboard-empty">
           <h2>No jobs yet</h2>
           <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
-          <button type="button" className="dashboard-new-btn" onClick={() => navigate("/upload")}>
+          <button type="button" className="dashboard-new-btn" onClick={handleNewProject}>
             Upload Clips
           </button>
         </div>

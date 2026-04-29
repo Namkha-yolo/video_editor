@@ -5,11 +5,13 @@ interface ProjectState {
   clips: Clip[];
   selectedMood: Mood | null;
   currentJob: Job | null;
+  isProjectActive: boolean;
   setClips: (clips: Clip[]) => void;
   addClip: (clip: Clip) => void;
   removeClip: (id: string) => void;
   setSelectedMood: (mood: Mood | null) => void;
   setCurrentJob: (job: Job | null) => void;
+  setIsProjectActive: (active: boolean) => void;
 }
 
 function dedupeClips(clips: Clip[]) {
@@ -20,12 +22,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
   clips: [],
   selectedMood: null,
   currentJob: null,
+  isProjectActive: false,
   setClips: (clips) => set({ clips: dedupeClips(clips) }),
   addClip: (clip) =>
     set((s) => ({
       clips: dedupeClips([...s.clips, clip]),
     })),
-  removeClip: (id) => set((s) => ({ clips: s.clips.filter((c) => c.id !== id) })),
+  removeClip: (id) =>
+    set((s) => ({ clips: s.clips.filter((c) => c.id !== id) })),
   setSelectedMood: (mood) => set({ selectedMood: mood }),
   setCurrentJob: (job) => set({ currentJob: job }),
+  setIsProjectActive: (active) => set({ isProjectActive: active }),
 }));
