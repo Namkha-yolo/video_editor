@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { moods } from "@clipvibe/shared";
 import type { CustomMoodPreset, Mood, MoodGrading } from "@clipvibe/shared";
 import { useProjectStore } from "@/store/projectStore";
+import { toast } from "@/store/toastStore";
 import api from "@/lib/api";
 import "./MoodPage.css";
 
@@ -175,10 +176,9 @@ export default function MoodPage() {
       const { data } = await api.post<{ job_id: string }>("/jobs", payload);
       navigate(`/processing/${data.job_id}`);
     } catch (err: any) {
-      setError(
-        err?.response?.data?.error ??
-          "Failed to start grading. Please try again.",
-      );
+      const message = err?.response?.data?.error ?? "Failed to start grading. Please try again.";
+      setError(message);
+      toast.error(message);
       setLoading(false);
     }
   }

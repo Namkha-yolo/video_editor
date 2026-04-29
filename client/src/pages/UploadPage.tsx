@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
+import { toast } from "@/store/toastStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
 import "./UploadPage.css";
@@ -206,6 +207,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
+      toast.success(`${file.name} uploaded successfully.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 
@@ -215,6 +217,7 @@ export default function UploadPage() {
         progress: 0,
         error: message,
       }));
+      toast.error(`${file.name}: ${message}`);
     }
   };
 
@@ -334,14 +337,16 @@ export default function UploadPage() {
                           {" • "}{item.status}
                         </p>
                       </div>
-                      <button
-                        className="upload-page__item-remove"
-                        type="button"
-                        aria-label="Remove clip"
-                        onClick={() => handleRemove(item)}
-                      >
-                        ✕
-                      </button>
+                      {(item.status === "success" || item.status === "error" || item.status === "canceled") && (
+                        <button
+                          className="upload-page__item-remove"
+                          type="button"
+                          aria-label="Remove clip"
+                          onClick={() => handleRemove(item)}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
 
                     {/* check progress */}
