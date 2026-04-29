@@ -241,6 +241,7 @@ export default function DashboardPage() {
 
   const handleNewProject = useCallback(() => {
     setIsProjectActive(true);
+    setClips([]);
     navigate("/upload");
   }, [navigate, setIsProjectActive]);
 

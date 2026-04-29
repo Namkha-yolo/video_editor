@@ -30,7 +30,7 @@ export default function Layout() {
     await supabase.auth.signOut();
   };
 
-  const handleNewProject = () => {
+  const initialProject = () => {
     setIsProjectActive(false);
     setClips([]);
   };
@@ -42,7 +42,7 @@ export default function Layout() {
           <Link
             to="/dashboard"
             className="layout__brand"
-            onClick={handleNewProject}
+            onClick={initialProject}
           >
             <img
               src="/logo.png"
@@ -109,7 +109,7 @@ export default function Layout() {
                       `layout__nav-link${isActive ? " layout__nav-link--active" : ""}`
                     }
                     onClick={
-                      item.to === "/dashboard" ? handleNewProject : undefined
+                      item.to === "/dashboard" ? initialProject : undefined
                     }
                   >
                     {item.label}
