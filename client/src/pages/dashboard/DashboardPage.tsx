@@ -6,7 +6,13 @@ import type { Clip, Mood } from "@clipvibe/shared";
 import { JobGroupCard } from "./JobGroupCard";
 import { StatusFilters } from "./StatusFilters";
 import { ClipsPanel } from "./ClipsPanel";
-import type { DashboardJob, JobsResponse, ClipsResponse, JobDetailResponse, StatusFilter } from "./types";
+import type {
+  DashboardJob,
+  JobsResponse,
+  ClipsResponse,
+  JobDetailResponse,
+  StatusFilter,
+} from "./types";
 import { MOODS, formatDateTime } from "./utils";
 import "./DashboardPage.css";
 
@@ -14,7 +20,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const setClips = useProjectStore((s) => s.setClips);
   const setSelectedMood = useProjectStore((s) => s.setSelectedMood);
-  const setIsProjectActive = useProjectStore((s) => s.setIsProjectActive)
+  const setIsProjectActive = useProjectStore((s) => s.setIsProjectActive);
   const [jobs, setJobs] = useState<DashboardJob[]>([]);
   const [clipById, setClipById] = useState<Record<string, Clip>>({});
   const [previewUrlsByJob, setPreviewUrlsByJob] = useState<Record<string, string[]>>({});
@@ -47,7 +53,7 @@ export default function DashboardPage() {
         } catch {
           return { jobId: job.id, urls: [] };
         }
-      })
+      }),
     );
 
     const nextMap: Record<string, string[]> = {};
@@ -92,7 +98,7 @@ export default function DashboardPage() {
         }
       }
     },
-    [fetchPreviewUrls]
+    [fetchPreviewUrls],
   );
 
   useEffect(() => {
@@ -101,12 +107,20 @@ export default function DashboardPage() {
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
-    [jobs]
+    [jobs],
   );
 
   const jobsWithExistingClips = useMemo(
     () => sortedJobs.filter((job) => job.clip_ids.some((clipId) => Boolean(clipById[clipId]))),
-    [sortedJobs, clipById]
+    [sortedJobs, clipById],
+  );
+
+  const allClips = useMemo(
+    () =>
+      Object.values(clipById).sort(
+        (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
+      ),
+    [clipById],
   );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -118,7 +132,11 @@ export default function DashboardPage() {
       const fullId = job.id.toLowerCase();
       const shortId = job.id.slice(0, 8).toLowerCase();
       const mood = job.mood.toLowerCase();
-      return fullId.includes(normalizedSearch) || shortId.includes(normalizedSearch) || mood.includes(normalizedSearch);
+      return (
+        fullId.includes(normalizedSearch) ||
+        shortId.includes(normalizedSearch) ||
+        mood.includes(normalizedSearch)
+      );
     });
   }, [jobsWithExistingClips, normalizedSearch]);
 
@@ -155,16 +173,23 @@ export default function DashboardPage() {
       .sort((a, b) => +new Date(b.jobs[0].created_at) - +new Date(a.jobs[0].created_at));
   }, [filteredJobs]);
 
-  const visibleMoodKeys = useMemo(() => jobsByMood.map((group) => group.mood), [jobsByMood]);
+  const expandableMoodKeys = useMemo(
+    () => jobsByMood.filter((group) => group.jobs.length > 2).map((group) => group.mood),
+    [jobsByMood],
+  );
 
   const allGroupsExpanded = useMemo(
-    () => visibleMoodKeys.length > 0 && visibleMoodKeys.every((mood) => Boolean(expandedMoodGroups[mood])),
-    [visibleMoodKeys, expandedMoodGroups]
+    () =>
+      expandableMoodKeys.length > 0 &&
+      expandableMoodKeys.every((mood) => Boolean(expandedMoodGroups[mood])),
+    [expandableMoodKeys, expandedMoodGroups],
   );
 
   const hasAnyJobHistory = jobsWithExistingClips.length > 0;
   const hasNoFilteredResults = hasAnyJobHistory && filteredJobs.length === 0;
   const hasSearchOrFilter = Boolean(normalizedSearch) || statusFilter !== "all";
+  const clipCount = allClips.length;
+  const hasExpandableGroups = expandableMoodKeys.length > 0;
 
   const handleReRun = (job: DashboardJob) => {
     const matchedClips = job.clip_ids
@@ -177,6 +202,7 @@ export default function DashboardPage() {
     }
 
     setClips(matchedClips);
+    setIsProjectActive(true);
     if (MOODS.includes(job.mood as Mood)) {
       setSelectedMood(job.mood as Mood);
     }
@@ -188,22 +214,26 @@ export default function DashboardPage() {
     await loadDashboardData("refresh");
   }, [loadDashboardData, refreshing]);
 
-  const handleDeleteClip = useCallback(async (clipId: string) => {
-    setDeletingClipId(clipId);
-    try {
-      await api.delete(`/clips/${clipId}`);
-      setClipById((prev) => {
-        const next = { ...prev };
-        delete next[clipId];
-        return next;
-      });
-      setError(null);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to delete clip.");
-    } finally {
-      setDeletingClipId(null);
-    }
-  }, []);
+  const handleDeleteClip = useCallback(
+    async (clipId: string) => {
+      setDeletingClipId(clipId);
+      try {
+        await api.delete(`/clips/${clipId}`);
+        setClipById((prev) => {
+          const next = { ...prev };
+          delete next[clipId];
+          return next;
+        });
+        setError(null);
+        await loadDashboardData("refresh");
+      } catch (err: any) {
+        setError(err?.response?.data?.error || "Failed to delete clip.");
+      } finally {
+        setDeletingClipId(null);
+      }
+    },
+    [loadDashboardData],
+  );
 
   const handleDeleteJob = useCallback(async (job: DashboardJob) => {
     setDeletingJobId(job.id);
@@ -227,12 +257,12 @@ export default function DashboardPage() {
     const shouldExpandAll = !allGroupsExpanded;
     setExpandedMoodGroups((prev) => {
       const next = { ...prev };
-      visibleMoodKeys.forEach((mood) => {
+      expandableMoodKeys.forEach((mood) => {
         next[mood] = shouldExpandAll;
       });
       return next;
     });
-  }, [allGroupsExpanded, visibleMoodKeys]);
+  }, [allGroupsExpanded, expandableMoodKeys]);
 
   const clearAllFilters = useCallback(() => {
     setStatusFilter("all");
@@ -243,7 +273,7 @@ export default function DashboardPage() {
     setIsProjectActive(true);
     setClips([]);
     navigate("/upload");
-  }, [navigate, setIsProjectActive]);
+  }, [navigate, setClips, setIsProjectActive]);
 
   if (loading) {
     return (
@@ -262,19 +292,21 @@ export default function DashboardPage() {
           <p className="dashboard-subtitle">
             {filteredJobs.length} job{filteredJobs.length !== 1 ? "s" : ""} across {jobsByMood.length} mood{jobsByMood.length !== 1 ? "s" : ""}
           </p>
-          {lastUpdatedAt && <p className="dashboard-last-updated">Last updated {formatDateTime(lastUpdatedAt)}</p>}
+          {lastUpdatedAt && (
+            <p className="dashboard-last-updated">Last updated {formatDateTime(lastUpdatedAt)}</p>
+          )}
         </div>
         <div className="dashboard-header-actions">
           <button
             type="button"
-            className="dashboard-action-btn dashboard-action-btn--secondary"
+            className="dashboard-top-btn dashboard-top-btn--secondary"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
           >
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
-          <button type="button" className="dashboard-new-btn" onClick={handleNewProject}>
-            + New Project
+          <button type="button" className="dashboard-top-btn dashboard-top-btn--primary" onClick={handleNewProject}>
+            New Project
           </button>
         </div>
       </div>
@@ -282,7 +314,9 @@ export default function DashboardPage() {
       <div className="dashboard-controls">
         <div className="dashboard-controls-row">
           <div className="dashboard-search-wrap">
-            <label className="dashboard-search-label" htmlFor="dashboard-job-search">Search jobs</label>
+            <label className="dashboard-search-label" htmlFor="dashboard-job-search">
+              Search jobs
+            </label>
             <input
               id="dashboard-job-search"
               type="text"
@@ -292,24 +326,29 @@ export default function DashboardPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button
-            type="button"
-            className="dashboard-action-btn dashboard-action-btn--secondary"
-            onClick={toggleAllMoodGroups}
-            disabled={jobsByMood.length === 0}
-          >
-            {allGroupsExpanded ? "Collapse all moods" : "Expand all moods"}
-          </button>
+          {hasExpandableGroups && (
+            <button
+              type="button"
+              className="dashboard-action-btn dashboard-action-btn--secondary dashboard-expand-btn"
+              onClick={toggleAllMoodGroups}
+            >
+              {allGroupsExpanded ? "Collapse groups" : "Expand groups"}
+            </button>
+          )}
         </div>
         <div className="dashboard-filters-section">
-          <p className="dashboard-filters-label">Filter by Status:</p>
-          <StatusFilters activeFilter={statusFilter} onFilterChange={setStatusFilter} counts={statusCounts} />
+          <p className="dashboard-filters-label">Filter by status</p>
+          <StatusFilters
+            activeFilter={statusFilter}
+            onFilterChange={setStatusFilter}
+            counts={statusCounts}
+          />
         </div>
       </div>
 
       {error && <p className="dashboard-error">{error}</p>}
 
-      {Object.values(clipById).length > 0 && (
+      {clipCount > 0 && (
         <div className="dashboard-clips-section">
           <button
             type="button"
@@ -317,14 +356,17 @@ export default function DashboardPage() {
             onClick={() => setShowClipsPanel(!showClipsPanel)}
             aria-expanded={showClipsPanel}
           >
-            <span className="dashboard-clips-toggle-icon">{showClipsPanel ? "▼" : "▶"}</span>
-            <span className="dashboard-clips-toggle-text">
-              My Clips ({Object.values(clipById).length})
+            <span
+              className={`dashboard-clips-toggle-icon${showClipsPanel ? " dashboard-clips-toggle-icon--open" : ""}`}
+              aria-hidden="true"
+            >
+              {">"}
             </span>
+            <span className="dashboard-clips-toggle-text">My Clips ({clipCount})</span>
           </button>
           {showClipsPanel && (
             <ClipsPanel
-              clips={Object.values(clipById)}
+              clips={allClips}
               deletingClipId={deletingClipId}
               onDeleteClip={handleDeleteClip}
             />
@@ -336,7 +378,7 @@ export default function DashboardPage() {
         <div className="dashboard-empty">
           <h2>No jobs yet</h2>
           <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
-          <button type="button" className="dashboard-new-btn" onClick={handleNewProject}>
+          <button type="button" className="dashboard-top-btn dashboard-top-btn--primary" onClick={handleNewProject}>
             Upload Clips
           </button>
         </div>
@@ -345,7 +387,11 @@ export default function DashboardPage() {
           <h2>No matching jobs</h2>
           <p>Try a different search term or reset filters to see all jobs.</p>
           {hasSearchOrFilter && (
-            <button type="button" className="dashboard-action-btn dashboard-action-btn--secondary" onClick={clearAllFilters}>
+            <button
+              type="button"
+              className="dashboard-action-btn dashboard-action-btn--secondary"
+              onClick={clearAllFilters}
+            >
               Clear search and filters
             </button>
           )}
