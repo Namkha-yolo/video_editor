@@ -709,13 +709,18 @@
   white-space: nowrap;
 }
 
+.dashboard-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .dashboard-action--primary {
   background: rgba(34, 197, 94, 0.15);
   border: 1.5px solid rgba(34, 197, 94, 0.5);
   color: #86efac;
 }
 
-.dashboard-action--primary:hover {
+.dashboard-action--primary:hover:not(:disabled) {
   background: rgba(34, 197, 94, 0.25);
   border-color: rgba(34, 197, 94, 0.7);
   transform: translateY(-1px);
@@ -727,7 +732,7 @@
   color: #7dd3fc;
 }
 
-.dashboard-action--ghost:hover {
+.dashboard-action--ghost:hover:not(:disabled) {
   background: rgba(56, 189, 248, 0.2);
   border-color: rgba(56, 189, 248, 0.6);
   transform: translateY(-1px);

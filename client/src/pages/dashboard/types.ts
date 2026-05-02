@@ -26,4 +26,14 @@ export interface JobDetailResponse {
   }>;
 }
 
+export interface JobDownloadResponse {
+  job_id: string;
+  mood: string;
+  download_urls: Array<{
+    clip_index: number;
+    url: string;
+    path: string;
+  }>;
+}
+
 export type StatusFilter = "all" | "queued" | "analyzing" | "grading" | "complete" | "failed";
