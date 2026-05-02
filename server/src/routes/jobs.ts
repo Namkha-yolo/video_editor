@@ -60,6 +60,16 @@ async function createSignedUrls(bucket: "clips" | "outputs", paths: string[], ex
   );
 }
 
+function fileNameFromStoragePath(storagePath: string, fallback: string) {
+  const fileName = storagePath.split("/").pop();
+  return fileName || fallback;
+}
+
+function contentDispositionAttachment(fileName: string) {
+  const asciiFileName = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "'");
+  return `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 router.post("/", requireAuth, async (req, res) => {
   try {
     const parsedBody = CreateJobSchema.safeParse(req.body);
@@ -262,6 +272,68 @@ router.get("/:id/download", requireAuth, async (req, res) => {
   } catch (error: any) {
     console.error("Download job error:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/:id/download/:clipIndex", requireAuth, async (req, res) => {
+  try {
+    const { id, clipIndex } = req.params;
+    const userId = (req as any).user.id;
+    const parsedClipIndex = Number.parseInt(clipIndex, 10);
+
+    if (!Number.isInteger(parsedClipIndex) || parsedClipIndex < 1) {
+      return res.status(400).json({ error: "Invalid clip index" });
+    }
+
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    if (job.status !== "complete") {
+      return res.status(400).json({
+        error: "Job not complete yet",
+        status: job.status,
+      });
+    }
+
+    const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
+    const outputPath = outputPaths[parsedClipIndex - 1];
+
+    if (!outputPath) {
+      return res.status(404).json({ error: "Output file not found" });
+    }
+
+    const { data } = await supabase.storage.from("outputs").createSignedUrl(outputPath, 300);
+    if (!data?.signedUrl) {
+      return res.status(500).json({ error: "Failed to create download URL" });
+    }
+
+    const upstream = await fetch(data.signedUrl);
+    if (!upstream.ok || !upstream.body) {
+      return res.status(502).json({ error: "Failed to fetch output file" });
+    }
+
+    const fileName = fileNameFromStoragePath(outputPath, `clipvibe-output-${parsedClipIndex}.mp4`);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "video/mp4");
+    res.setHeader("Content-Disposition", contentDispositionAttachment(fileName));
+
+    const contentLength = upstream.headers.get("content-length");
+    if (contentLength) {
+      res.setHeader("Content-Length", contentLength);
+    }
+
+    const body = Buffer.from(await upstream.arrayBuffer());
+    return res.send(body);
+  } catch (error: any) {
+    console.error("Download output error:", error);
+    return res.status(500).json({ error: "Failed to download output file" });
   }
 });
 

@@ -11,10 +11,28 @@ import type {
   JobsResponse,
   ClipsResponse,
   JobDetailResponse,
+  JobDownloadResponse,
   StatusFilter,
 } from "./types";
 import { MOODS, formatDateTime } from "./utils";
 import "./DashboardPage.css";
+
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const blobUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = blobUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
+function outputFileName(path: string, index: number) {
+  const fallback = `clipvibe-output-${index}.mp4`;
+  const fileName = path.split("/").pop();
+  return fileName || fallback;
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -34,6 +52,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
 
   const fetchPreviewUrls = useCallback(async (jobList: DashboardJob[]) => {
     if (jobList.length === 0) {
@@ -253,6 +272,33 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const handleRedownload = useCallback(async (job: DashboardJob) => {
+    setDownloadingJobId(job.id);
+    setError(null);
+
+    try {
+      const { data } = await api.get<JobDownloadResponse>(`/jobs/${job.id}/download`);
+      const downloadableUrls = (data.download_urls || []).filter((item) => Boolean(item.url));
+
+      if (downloadableUrls.length === 0) {
+        setError("No downloadable outputs were found for this job.");
+        return;
+      }
+
+      for (const item of downloadableUrls) {
+        const response = await api.get<Blob>(`/jobs/${job.id}/download/${item.clip_index}`, {
+          responseType: "blob",
+        });
+        triggerBlobDownload(response.data, outputFileName(item.path, item.clip_index));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to redownload job outputs.");
+    } finally {
+      setDownloadingJobId(null);
+    }
+  }, []);
+
   const toggleAllMoodGroups = useCallback(() => {
     const shouldExpandAll = !allGroupsExpanded;
     setExpandedMoodGroups((prev) => {
@@ -410,8 +456,10 @@ export default function DashboardPage() {
                 }
                 onReRun={handleReRun}
                 onNavigate={navigate}
+                onRedownload={handleRedownload}
                 onDelete={handleDeleteJob}
                 deletingJobId={deletingJobId}
+                downloadingJobId={downloadingJobId}
               />
             ))}
           </div>

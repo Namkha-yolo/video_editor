@@ -23,15 +23,15 @@ interface JobDetail {
   clips: JobClip[];
 }
 
-function triggerDownload(url: string, fileName: string) {
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = url;
+  anchor.href = blobUrl;
   anchor.download = fileName;
-  anchor.target = "_blank";
-  anchor.rel = "noopener";
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 }
 
 function gradedFileName(clip: JobClip, mood: string) {
@@ -97,7 +97,11 @@ export default function ExportPage() {
     try {
       for (const clip of downloadableClips) {
         if (!clip.output_url) continue;
-        triggerDownload(clip.output_url, gradedFileName(clip, job.mood));
+        const clipIndex = job.clips.findIndex((jobClip) => jobClip.id === clip.id) + 1;
+        const response = await api.get<Blob>(`/jobs/${job.id}/download/${clipIndex}`, {
+          responseType: "blob",
+        });
+        triggerBlobDownload(response.data, gradedFileName(clip, job.mood));
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
     } finally {
@@ -221,10 +225,19 @@ export default function ExportPage() {
                 type="button"
                 className="export-btn"
                 disabled={!clip.output_url}
-                onClick={() =>
-                  clip.output_url &&
-                  triggerDownload(clip.output_url, gradedFileName(clip, job.mood))
-                }
+                onClick={() => {
+                  if (!clip.output_url) return;
+                  void api
+                    .get<Blob>(`/jobs/${job.id}/download/${index + 1}`, {
+                      responseType: "blob",
+                    })
+                    .then((response) => {
+                      triggerBlobDownload(response.data, gradedFileName(clip, job.mood));
+                    })
+                    .catch(() => {
+                      setError("Download failed. Please refresh the page and try again.");
+                    });
+                }}
               >
                 Download
               </button>

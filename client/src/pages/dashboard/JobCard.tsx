@@ -6,11 +6,22 @@ interface JobCardProps {
   preview: string | null;
   onReRun: (job: DashboardJob) => void;
   onNavigate: (path: string) => void;
+  onRedownload: (job: DashboardJob) => void;
   onDelete: (job: DashboardJob) => void;
   isDeleting: boolean;
+  isDownloading: boolean;
 }
 
-export function JobCard({ job, preview, onReRun, onNavigate, onDelete, isDeleting }: JobCardProps) {
+export function JobCard({
+  job,
+  preview,
+  onReRun,
+  onNavigate,
+  onRedownload,
+  onDelete,
+  isDeleting,
+  isDownloading,
+}: JobCardProps) {
   const isComplete = job.status === "complete";
   const isInFlight = job.status === "queued" || job.status === "analyzing" || job.status === "grading";
   const showErrorTooltip = job.status === "failed" && Boolean(job.error_message);
@@ -63,10 +74,20 @@ export function JobCard({ job, preview, onReRun, onNavigate, onDelete, isDeletin
         <button
           type="button"
           className="dashboard-action dashboard-action--primary"
-          onClick={() => onNavigate(isComplete ? `/export/${job.id}` : `/processing/${job.id}`)}
+          onClick={() => (isComplete ? onRedownload(job) : onNavigate(`/processing/${job.id}`))}
+          disabled={isComplete && isDownloading}
         >
-          {isComplete ? "Re-download" : isInFlight ? "View Progress" : "View Details"}
+          {isComplete ? (isDownloading ? "Downloading..." : "Re-download") : isInFlight ? "View Progress" : "View Details"}
         </button>
+        {isComplete && (
+          <button
+            type="button"
+            className="dashboard-action dashboard-action--ghost"
+            onClick={() => onNavigate(`/export/${job.id}`)}
+          >
+            Compare
+          </button>
+        )}
         <button
           type="button"
           className="dashboard-action dashboard-action--ghost"
