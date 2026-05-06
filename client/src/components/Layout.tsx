@@ -4,6 +4,7 @@ import { Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
+import { ToastContainer } from "./ToastContainer";
 import "./Layout.css";
 
 const NAV_ITEMS = [
@@ -123,6 +124,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

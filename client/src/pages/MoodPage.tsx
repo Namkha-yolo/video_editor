@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { moods } from "@clipvibe/shared";
 import type { CustomMoodPreset, Mood, MoodGrading } from "@clipvibe/shared";
 import { useProjectStore } from "@/store/projectStore";
 import api from "@/lib/api";
+import { toast } from "@/store/toastStore";
 import "./MoodPage.css";
 
 const CUSTOM_MOOD_STORAGE_KEY = "clipvibe.customMoods";
@@ -109,9 +110,25 @@ export default function MoodPage() {
     mood.label.toLowerCase().includes(query.toLowerCase()),
   );
 
-  const updateCustomMoods = (next: CustomMoodPreset[]) => {
+  useEffect(() => {
+    api.get<{ presets: CustomMoodPreset[] }>("/moods/custom")
+      .then(({ data }) => {
+        if (data.presets.length > 0) {
+          setCustomMoods(data.presets);
+          saveCustomMoods(data.presets);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const syncCustomMoods = async (next: CustomMoodPreset[]) => {
     setCustomMoods(next);
     saveCustomMoods(next);
+    try {
+      await api.put("/moods/custom", { presets: next });
+    } catch {
+      toast.error("Could not save preset to server. It is saved locally.");
+    }
   };
 
   const handleSaveCustomMood = () => {
@@ -130,10 +147,11 @@ export default function MoodPage() {
     };
 
     const next = [preset, ...customMoods].slice(0, 12);
-    updateCustomMoods(next);
+    void syncCustomMoods(next);
     setSelectedMood(null);
     setSelectedCustomMoodId(preset.id);
     setError(null);
+    toast.success(`"${label}" preset saved.`);
   };
 
   const handleSelectCustomMood = (preset: CustomMoodPreset) => {
@@ -145,7 +163,7 @@ export default function MoodPage() {
 
   const handleDeleteCustomMood = (presetId: string) => {
     const next = customMoods.filter((preset) => preset.id !== presetId);
-    updateCustomMoods(next);
+    void syncCustomMoods(next);
     if (selectedCustomMoodId === presetId) {
       setSelectedCustomMoodId(null);
     }
@@ -175,10 +193,9 @@ export default function MoodPage() {
       const { data } = await api.post<{ job_id: string }>("/jobs", payload);
       navigate(`/processing/${data.job_id}`);
     } catch (err: any) {
-      setError(
-        err?.response?.data?.error ??
-          "Failed to start grading. Please try again.",
-      );
+      const message = err?.response?.data?.error ?? "Failed to start grading. Please try again.";
+      setError(message);
+      toast.error(message);
       setLoading(false);
     }
   }

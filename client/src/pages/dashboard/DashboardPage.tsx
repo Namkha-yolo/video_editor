@@ -15,6 +15,7 @@ import type {
   StatusFilter,
 } from "./types";
 import { MOODS, formatDateTime } from "./utils";
+import { toast } from "@/store/toastStore";
 import "./DashboardPage.css";
 
 function triggerBlobDownload(blob: Blob, fileName: string) {
@@ -216,7 +217,7 @@ export default function DashboardPage() {
       .filter((clip): clip is Clip => Boolean(clip));
 
     if (matchedClips.length === 0) {
-      setError("Could not find clips for this job. Upload clips again before rerunning.");
+      toast.error("Could not find clips for this job. Upload clips again before rerunning.");
       return;
     }
 
@@ -243,10 +244,10 @@ export default function DashboardPage() {
           delete next[clipId];
           return next;
         });
-        setError(null);
+        toast.success("Clip deleted.");
         await loadDashboardData("refresh");
       } catch (err: any) {
-        setError(err?.response?.data?.error || "Failed to delete clip.");
+        toast.error(err?.response?.data?.error || "Failed to delete clip.");
       } finally {
         setDeletingClipId(null);
       }
@@ -264,9 +265,9 @@ export default function DashboardPage() {
         delete next[job.id];
         return next;
       });
-      setError(null);
+      toast.success("Job deleted.");
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to delete job.");
+      toast.error(err?.response?.data?.error || "Failed to delete job.");
     } finally {
       setDeletingJobId(null);
     }
@@ -274,14 +275,13 @@ export default function DashboardPage() {
 
   const handleRedownload = useCallback(async (job: DashboardJob) => {
     setDownloadingJobId(job.id);
-    setError(null);
 
     try {
       const { data } = await api.get<JobDownloadResponse>(`/jobs/${job.id}/download`);
       const downloadableUrls = (data.download_urls || []).filter((item) => Boolean(item.url));
 
       if (downloadableUrls.length === 0) {
-        setError("No downloadable outputs were found for this job.");
+        toast.error("No downloadable outputs were found for this job.");
         return;
       }
 
@@ -292,8 +292,9 @@ export default function DashboardPage() {
         triggerBlobDownload(response.data, outputFileName(item.path, item.clip_index));
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
+      toast.success(`Downloaded ${downloadableUrls.length} clip${downloadableUrls.length !== 1 ? "s" : ""}.`);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to redownload job outputs.");
+      toast.error(err?.response?.data?.error || "Failed to redownload job outputs.");
     } finally {
       setDownloadingJobId(null);
     }
@@ -422,16 +423,33 @@ export default function DashboardPage() {
 
       {!hasAnyJobHistory ? (
         <div className="dashboard-empty">
-          <h2>No jobs yet</h2>
-          <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
+          <svg className="dashboard-empty__illustration" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+            <rect x="8" y="24" width="64" height="42" rx="5" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.4)" strokeWidth="2"/>
+            <rect x="8" y="24" width="64" height="12" rx="5" fill="rgba(59,130,246,0.2)" stroke="rgba(59,130,246,0.4)" strokeWidth="2"/>
+            <line x1="24" y1="24" x2="20" y2="14" stroke="rgba(59,130,246,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="38" y1="24" x2="34" y2="14" stroke="rgba(59,130,246,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="52" y1="24" x2="48" y2="14" stroke="rgba(59,130,246,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="16" y1="14" x2="56" y2="14" stroke="rgba(59,130,246,0.4)" strokeWidth="2" strokeLinecap="round"/>
+            <circle cx="40" cy="51" r="9" fill="rgba(59,130,246,0.15)" stroke="rgba(96,165,250,0.5)" strokeWidth="1.5"/>
+            <polygon points="37,47 37,55 46,51" fill="rgba(96,165,250,0.7)"/>
+          </svg>
+          <h2 className="dashboard-empty__title">No jobs yet</h2>
+          <p className="dashboard-empty__desc">Upload your first clips to kick off a grading job.</p>
           <button type="button" className="dashboard-top-btn dashboard-top-btn--primary" onClick={handleNewProject}>
             Upload Clips
           </button>
         </div>
       ) : hasNoFilteredResults ? (
         <div className="dashboard-empty dashboard-empty--filtered">
-          <h2>No matching jobs</h2>
-          <p>Try a different search term or reset filters to see all jobs.</p>
+          <svg className="dashboard-empty__illustration" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+            <circle cx="34" cy="34" r="18" fill="rgba(59,130,246,0.10)" stroke="rgba(59,130,246,0.4)" strokeWidth="2"/>
+            <circle cx="34" cy="34" r="11" fill="rgba(59,130,246,0.07)" stroke="rgba(59,130,246,0.25)" strokeWidth="1.5"/>
+            <line x1="47" y1="47" x2="62" y2="62" stroke="rgba(96,165,250,0.6)" strokeWidth="3.5" strokeLinecap="round"/>
+            <line x1="29" y1="34" x2="39" y2="34" stroke="rgba(96,165,250,0.5)" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="34" y1="29" x2="34" y2="39" stroke="rgba(96,165,250,0.5)" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <h2 className="dashboard-empty__title">No matching results</h2>
+          <p className="dashboard-empty__desc">Try a different search term or reset your filters.</p>
           {hasSearchOrFilter && (
             <button
               type="button"

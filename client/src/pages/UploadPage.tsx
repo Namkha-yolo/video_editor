@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
+import { toast } from "@/store/toastStore";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -121,29 +122,23 @@ export default function UploadPage() {
 
     // Validate user + file before talking to backend.
     if (!user) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Login is required.",
-      }));
+      const msg = "Login is required.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Each file must be 50MB or less.",
-      }));
+      const msg = "Each file must be 50MB or less.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
     if (!isAcceptedVideoFile(file)) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Only mp4, mov, webm and real video are allowed.",
-      }));
+      const msg = "Only mp4, mov, webm are allowed.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
@@ -206,6 +201,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
+      toast.success(`${file.name} uploaded successfully.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 
@@ -215,6 +211,7 @@ export default function UploadPage() {
         progress: 0,
         error: message,
       }));
+      toast.error(`${file.name}: ${message}`);
     }
   };
 
@@ -222,6 +219,13 @@ export default function UploadPage() {
     setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
     if (item.clipId) removeClip(item.clipId);
   };
+
+  const handleRetry = (item: UploadItem) => {
+    setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
+    void uploadSingleFile(item.file);
+  };
+
+  const successCount = uploads.filter((u) => u.status === "success").length;
 
   // the function after drag and drop
   const onDrop = (acceptedFiles: File[]) => {
@@ -275,7 +279,14 @@ export default function UploadPage() {
 
       <div className="upload-page__list-panel">
         <div className="upload-page__list-header">
-          <h2 className="upload-page__list-title">Uploaded Clips</h2>
+          <h2 className="upload-page__list-title">
+            Uploaded Clips
+            {uploads.length > 0 && (
+              <span className="upload-page__count-badge">
+                {successCount} / {uploads.length}
+              </span>
+            )}
+          </h2>
         </div>
         {uploads.length === 0 ? (
           <p className="upload-page__list-empty">No clips uploaded yet.</p>
@@ -330,6 +341,18 @@ export default function UploadPage() {
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
+                    {item.status === "error" && (
+                      <div className="upload-page__item-error-row">
+                        <p className="upload-page__item-error">{item.error}</p>
+                        <button
+                          className="upload-page__retry-button"
+                          type="button"
+                          onClick={() => handleRetry(item)}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
