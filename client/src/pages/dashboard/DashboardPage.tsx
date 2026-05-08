@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useProjectStore } from "@/store/projectStore";
@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchPreviewUrls = useCallback(async (jobList: DashboardJob[]) => {
     if (jobList.length === 0) {
@@ -123,6 +124,39 @@ export default function DashboardPage() {
   useEffect(() => {
     void loadDashboardData("initial");
   }, [loadDashboardData]);
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+
+      const isSearchShortcut =
+        (event.key === "/" || event.code === "Slash") &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey;
+
+      if (isSearchShortcut && !isTypingTarget) {
+        event.preventDefault();
+        searchInputRef.current?.focus({ preventScroll: true });
+        window.requestAnimationFrame(() => searchInputRef.current?.select());
+      }
+
+      if (
+        event.key === "Escape" &&
+        document.activeElement === searchInputRef.current &&
+        searchQuery
+      ) {
+        setSearchQuery("");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeydown, true);
+    return () => document.removeEventListener("keydown", handleKeydown, true);
+  }, [searchQuery]);
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
@@ -361,9 +395,10 @@ export default function DashboardPage() {
         <div className="dashboard-controls-row">
           <div className="dashboard-search-wrap">
             <label className="dashboard-search-label" htmlFor="dashboard-job-search">
-              Search jobs
+              Search jobs - press /
             </label>
             <input
+              ref={searchInputRef}
               id="dashboard-job-search"
               type="text"
               className="dashboard-search-input"
@@ -382,6 +417,9 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+        <p className="dashboard-controls-help">
+          Search by mood or job ID, then use the filters below to narrow the view.
+        </p>
         <div className="dashboard-filters-section">
           <p className="dashboard-filters-label">Filter by status</p>
           <StatusFilters
@@ -394,77 +432,97 @@ export default function DashboardPage() {
 
       {error && <p className="dashboard-error">{error}</p>}
 
-      {clipCount > 0 && (
-        <div className="dashboard-clips-section">
-          <button
-            type="button"
-            className="dashboard-clips-toggle"
-            onClick={() => setShowClipsPanel(!showClipsPanel)}
-            aria-expanded={showClipsPanel}
-          >
-            <span
-              className={`dashboard-clips-toggle-icon${showClipsPanel ? " dashboard-clips-toggle-icon--open" : ""}`}
-              aria-hidden="true"
-            >
-              {">"}
-            </span>
-            <span className="dashboard-clips-toggle-text">My Clips ({clipCount})</span>
-          </button>
-          {showClipsPanel && (
-            <ClipsPanel
-              clips={allClips}
-              deletingClipId={deletingClipId}
-              onDeleteClip={handleDeleteClip}
-            />
-          )}
-        </div>
-      )}
+      <div className="dashboard-content-stack">
+        {clipCount > 0 && (
+          <section className="dashboard-section">
+            <div className="dashboard-section-head">
+              <p className="dashboard-section-kicker">Workspace</p>
+              <h2 className="dashboard-section-title">Clip Library</h2>
+              <p className="dashboard-section-copy">
+                Review your uploaded clips before starting or rerunning a grading job.
+              </p>
+            </div>
+            <div className="dashboard-clips-section">
+              <button
+                type="button"
+                className="dashboard-clips-toggle"
+                onClick={() => setShowClipsPanel(!showClipsPanel)}
+                aria-expanded={showClipsPanel}
+              >
+                <span
+                  className={`dashboard-clips-toggle-icon${showClipsPanel ? " dashboard-clips-toggle-icon--open" : ""}`}
+                  aria-hidden="true"
+                >
+                  {">"}
+                </span>
+                <span className="dashboard-clips-toggle-text">My Clips ({clipCount})</span>
+              </button>
+              {showClipsPanel && (
+                <ClipsPanel
+                  clips={allClips}
+                  deletingClipId={deletingClipId}
+                  onDeleteClip={handleDeleteClip}
+                />
+              )}
+            </div>
+          </section>
+        )}
 
-      {!hasAnyJobHistory ? (
-        <div className="dashboard-empty">
-          <h2>No jobs yet</h2>
-          <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
-          <button type="button" className="dashboard-top-btn dashboard-top-btn--primary" onClick={handleNewProject}>
-            Upload Clips
-          </button>
-        </div>
-      ) : hasNoFilteredResults ? (
-        <div className="dashboard-empty dashboard-empty--filtered">
-          <h2>No matching jobs</h2>
-          <p>Try a different search term or reset filters to see all jobs.</p>
-          {hasSearchOrFilter && (
-            <button
-              type="button"
-              className="dashboard-action-btn dashboard-action-btn--secondary"
-              onClick={clearAllFilters}
-            >
-              Clear search and filters
+        {!hasAnyJobHistory ? (
+          <div className="dashboard-empty">
+            <h2>No jobs yet</h2>
+            <p>Upload clips to start a new grading job. Jobs with deleted clips are hidden.</p>
+            <button type="button" className="dashboard-top-btn dashboard-top-btn--primary" onClick={handleNewProject}>
+              Upload Clips
             </button>
-          )}
-        </div>
-      ) : (
-        <div className="dashboard-jobs-section">
-          <div className="dashboard-list">
-            {jobsByMood.map((group) => (
-              <JobGroupCard
-                key={group.mood}
-                group={group}
-                isExpanded={expandedMoodGroups[group.mood] || false}
-                previewUrlsByJob={previewUrlsByJob}
-                onToggleExpand={(mood) =>
-                  setExpandedMoodGroups((prev) => ({ ...prev, [mood]: !prev[mood] }))
-                }
-                onReRun={handleReRun}
-                onNavigate={navigate}
-                onRedownload={handleRedownload}
-                onDelete={handleDeleteJob}
-                deletingJobId={deletingJobId}
-                downloadingJobId={downloadingJobId}
-              />
-            ))}
           </div>
-        </div>
-      )}
+        ) : hasNoFilteredResults ? (
+          <div className="dashboard-empty dashboard-empty--filtered">
+            <h2>No matching jobs</h2>
+            <p>Try a different search term or reset filters to see all jobs.</p>
+            {hasSearchOrFilter && (
+              <button
+                type="button"
+                className="dashboard-action-btn dashboard-action-btn--secondary"
+                onClick={clearAllFilters}
+              >
+                Clear search and filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <section className="dashboard-section">
+            <div className="dashboard-section-head">
+              <p className="dashboard-section-kicker">Mood Collections</p>
+              <h2 className="dashboard-section-title">Recent Grading Runs</h2>
+              <p className="dashboard-section-copy">
+                Open completed exports, revisit active jobs, or rerun a mood from any saved group.
+              </p>
+            </div>
+            <div className="dashboard-jobs-section">
+              <div className="dashboard-list">
+                {jobsByMood.map((group) => (
+                  <JobGroupCard
+                    key={group.mood}
+                    group={group}
+                    isExpanded={expandedMoodGroups[group.mood] || false}
+                    previewUrlsByJob={previewUrlsByJob}
+                    onToggleExpand={(mood) =>
+                      setExpandedMoodGroups((prev) => ({ ...prev, [mood]: !prev[mood] }))
+                    }
+                    onReRun={handleReRun}
+                    onNavigate={navigate}
+                    onRedownload={handleRedownload}
+                    onDelete={handleDeleteJob}
+                    deletingJobId={deletingJobId}
+                    downloadingJobId={downloadingJobId}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
     </section>
   );
 }

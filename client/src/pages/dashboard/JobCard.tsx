@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { DashboardJob } from "./types";
 import { formatDateTime, shortJobId, STATUS_LABEL } from "./utils";
 
@@ -22,12 +23,31 @@ export function JobCard({
   isDeleting,
   isDownloading,
 }: JobCardProps) {
+  const [copied, setCopied] = useState(false);
   const isComplete = job.status === "complete";
   const isInFlight = job.status === "queued" || job.status === "analyzing" || job.status === "grading";
   const showErrorTooltip = job.status === "failed" && Boolean(job.error_message);
+  const detailPath = isComplete ? `/export/${job.id}` : `/processing/${job.id}`;
+
+  const handleCopyJobId = async () => {
+    await navigator.clipboard.writeText(job.id);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
 
   return (
     <div className="dashboard-row">
+      <button
+        type="button"
+        className="dashboard-delete-job-btn"
+        onClick={() => onDelete(job)}
+        aria-label={`Delete job ${shortJobId(job.id)}`}
+        title="Delete job"
+        disabled={isDeleting}
+      >
+        {isDeleting ? "..." : "X"}
+      </button>
+
       <div className="dashboard-row-preview-wrap">
         {preview ? (
           <video
@@ -36,11 +56,22 @@ export function JobCard({
             muted
             preload="metadata"
             playsInline
+            title="Double-click to open this job"
             onMouseEnter={(e) => void (e.currentTarget as HTMLVideoElement).play()}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLVideoElement).pause(); (e.currentTarget as HTMLVideoElement).currentTime = 0; }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLVideoElement).pause();
+              (e.currentTarget as HTMLVideoElement).currentTime = 0;
+            }}
+            onDoubleClick={() => onNavigate(detailPath)}
           />
         ) : (
-          <div className="dashboard-row-preview dashboard-row-preview--empty">No preview</div>
+          <div
+            className="dashboard-row-preview dashboard-row-preview--empty"
+            title="Double-click to open this job"
+            onDoubleClick={() => onNavigate(detailPath)}
+          >
+            No preview
+          </div>
         )}
       </div>
 
@@ -53,18 +84,17 @@ export function JobCard({
               {showErrorTooltip && <span className="status-badge-tooltip">{job.error_message}</span>}
             </span>
           </div>
-          <button
-            type="button"
-            className="dashboard-delete-job-btn"
-            onClick={() => onDelete(job)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
         </div>
         <p className="dashboard-row-meta">
           Job #{shortJobId(job.id)} | {job.clip_ids.length} clip{job.clip_ids.length !== 1 ? "s" : ""}
         </p>
+        <button
+          type="button"
+          className="dashboard-group-toggle"
+          onClick={() => void handleCopyJobId()}
+        >
+          {copied ? "Copied ID" : "Copy Job ID"}
+        </button>
         {job.error_message && !showErrorTooltip && (
           <p className="dashboard-job-error">{job.error_message}</p>
         )}

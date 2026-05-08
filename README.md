@@ -1,5 +1,22 @@
 # ClipVibe
 
+## Quick Overview
+
+ClipVibe is a multi-clip video grading app. Users upload clips, choose a mood, and the app analyzes each video before generating clip-specific grading instructions with Claude and applying them with FFmpeg.
+
+### Why it is useful
+
+- It grades multiple clips toward one shared mood instead of applying one flat preset
+- It keeps the workflow simple: upload, choose a mood, wait for processing, compare, download
+- It supports both built-in moods and custom mood presets
+
+### Dashboard highlights
+
+- Press `/` on the dashboard to focus search instantly
+- Double-click a job preview to jump straight to processing or export
+- Use `Copy Job ID` from a job card when you need to share or debug a specific run
+- Re-run a past mood directly from job history
+
 AI-powered mood-driven video color grading. Upload videos, pick a mood, and ClipVibe uses Claude (LLM) to intelligently color grade each clip so they all share the same cinematic feel — regardless of how different they originally looked.
 
 ## How It Works
@@ -92,7 +109,7 @@ clipvibe/
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── LoginPage.tsx        # Google/GitHub OAuth
-│   │   │   ├── DashboardPage.tsx    # Job history + re-download
+│   │   │   ├── DashboardPage.tsx    # Job history, search, rerun, and quick actions
 │   │   │   ├── UploadPage.tsx       # Drag-drop video upload
 │   │   │   ├── MoodPage.tsx         # 6-mood selection grid
 │   │   │   ├── ProcessingPage.tsx   # Real-time job progress
@@ -158,6 +175,27 @@ clipvibe/
 ```
 
 ## Getting Started
+
+### Recommended local setup
+
+If you want the easiest way to run the full project locally, use Docker Compose:
+
+```bash
+git clone <repo-url>
+cd clipvibe
+pnpm install
+docker compose up --build
+```
+
+Open `http://localhost:5173`.
+
+### Important Docker note
+
+Docker builds from your local workspace, not directly from GitHub. If you pull new commits or switch branches, rebuild so the running containers match your current code:
+
+```bash
+docker compose up --build -d
+```
 
 ### Prerequisites
 
@@ -375,7 +413,7 @@ pnpm dev          # starts Vite at localhost:5173
 | File | Status | What to implement |
 |------|--------|-------------------|
 | `src/pages/LoginPage.tsx` | Skeleton | Add Google + GitHub sign-in buttons using `supabase.auth.signInWithOAuth({ provider: "google" })`. Handle auth redirect. Redirect to `/dashboard` on success. |
-| `src/pages/DashboardPage.tsx` | Skeleton | Fetch `GET /api/jobs` using the api client (`import api from "@/lib/api"`). Display job cards showing mood, date, status, number of clips. Add "Re-download" button (links to export page) and "Re-run" button (links to mood page with same clips). |
+| `src/pages/DashboardPage.tsx` | Implemented | Displays grouped job history, search and status filters, quick re-download and rerun actions, and fast dashboard shortcuts for opening or locating jobs. |
 | `src/pages/UploadPage.tsx` | Skeleton | Build drag-and-drop zone using `react-dropzone`. Accept mp4/mov/webm, max 500MB per file. Upload files to Supabase Storage using `supabase.storage.from("clips").upload(...)`. Show per-file progress bars. Show video thumbnail previews. Store clips in `projectStore`. "Next" button navigates to `/mood`. |
 | `src/pages/MoodPage.tsx` | Skeleton | Build a 6-card grid (one per mood). Each card shows mood name, hex color swatch from `tailwind.config.js` mood colors, and a short description. Clicking a card selects it (highlight with border/glow). "Start Grading" button calls `api.post("/api/jobs", { mood, clip_ids })`, gets back a job ID, navigates to `/processing/{jobId}`. |
 | `src/pages/ProcessingPage.tsx` | Skeleton | Read `jobId` from URL params. Connect to WebSocket using `socket.io-client`. Emit `subscribe` event with the job ID. Listen for `progress` events. Display a multi-step progress indicator: Queued → Analyzing → Grading → Complete. Show per-clip status if available. When status is "complete", navigate to `/export/{jobId}`. |
