@@ -30,28 +30,28 @@ class MoodPrompt:
 
 MOOD_PROMPTS: dict[str, MoodPrompt] = {
     "nostalgic": MoodPrompt(
-        prompt="warm acoustic guitar, soft piano, vintage 1970s feel, slow tempo, intimate, contemplative, no vocals",
+        prompt="warm acoustic guitar fingerpicking, soft piano chords, gentle strings, vintage 70s singer-songwriter instrumental, intimate, contemplative",
         bpm_hint=78,
     ),
     "cinematic": MoodPrompt(
-        prompt="epic orchestral score, sweeping strings, dramatic slow build, film soundtrack, emotional, no vocals",
+        prompt="epic orchestral film score, sweeping strings and brass, slow dramatic build, Hans Zimmer style, instrumental",
         bpm_hint=70,
     ),
     "hype": MoodPrompt(
-        prompt="high-energy electronic dance, driving 808 beat, big synth lead, vibrant club anthem, 138 bpm, no vocals",
-        bpm_hint=138,
+        prompt="high energy EDM festival anthem, punchy four-on-the-floor kick, big synth lead, rolling bassline, instrumental",
+        bpm_hint=128,
     ),
     "chill": MoodPrompt(
-        prompt="lo-fi hip hop beat, mellow jazz chords, vinyl crackle, relaxed, smooth, 72 bpm, no vocals",
+        prompt="lo-fi hip hop beat, mellow jazzy electric piano, soft drums, warm bass, vinyl crackle, relaxed instrumental",
         bpm_hint=72,
     ),
     "dreamy": MoodPrompt(
-        prompt="ethereal ambient pad, shimmering synths, slow attack, atmospheric, weightless, no vocals",
+        prompt="ethereal ambient soundscape, shimmering synth pads, slow attack, reverb-drenched, weightless, instrumental",
         bpm_hint=68,
     ),
     "energetic": MoodPrompt(
-        prompt="upbeat pop instrumental, bright pluck synth, driving drums, optimistic and bouncy, 126 bpm, no vocals",
-        bpm_hint=126,
+        prompt="upbeat indie pop instrumental, bright pluck synth melody, driving drum kit, bouncy bass, optimistic",
+        bpm_hint=120,
     ),
 }
 
@@ -119,9 +119,15 @@ def generate_for_mood(
             input={
                 "prompt": prompt,
                 "duration": duration,
-                "model_version": "stereo-melody-large",
+                # stereo-large = text-to-music. The melody variants expect an
+                # input_audio file and underperform in text-only mode.
+                "model_version": "stereo-large",
                 "output_format": "mp3",
                 "normalization_strategy": "loudness",
+                # Tighter sampling = cleaner output that follows the prompt.
+                "classifier_free_guidance": 5,
+                "temperature": 0.85,
+                "top_k": 250,
             },
         )
     except Exception as exc:
