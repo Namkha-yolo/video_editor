@@ -1,5 +1,5 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useCallback, useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const avatarLabel = user?.email?.[0]?.toUpperCase() ?? "U";
   const isProjectActive = useProjectStore((s) => s.isProjectActive);
@@ -36,6 +37,13 @@ export default function Layout() {
     setClips([]);
   };
 
+
+  const handleNewProject = useCallback(() => {
+    setIsProjectActive(true);
+    setClips([]);
+    navigate("/upload");
+  }, [navigate, setClips, setIsProjectActive]);
+
   return (
     <div className={`layout${theme === "light" ? " layout--light" : ""}`}>
       <header className="layout__header">
@@ -53,6 +61,7 @@ export default function Layout() {
             <span className="layout__brand-text">ClipVibe</span>
           </Link>
           <div className="layout__user">
+            <button type="button" className="layout__New-project" onClick={handleNewProject}>New Project</button>
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
