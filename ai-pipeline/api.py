@@ -11,8 +11,10 @@ from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
 from services.analyzer import analyze_clip
+from services.assembler import PACING, AssemblyError, assemble
 from services.grader import ExposureAdjustment, grade_clip, GradingError
 from services.mood_grades import VALID_MOODS
+from services.scene_detector import SceneDetectionError, primary_scene
 from utils.ffmpeg import probe
 
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +65,14 @@ class GradeRequest(BaseModel):
     gain_g: float = 1.0
     gain_b: float = 1.0
     enable_masking: bool = True
+
+
+class AssembleRequest(BaseModel):
+    signed_urls: list[str]
+    mood: str
+    trim_to_primary_scene: bool = False
+    scene_threshold: float = 27.0
+    target_fps: int = 30
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +218,88 @@ async def probe_clip(body: ProbeRequest):
         raise HTTPException(status_code=500, detail=f"Probe failed: {e}")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+def _trim_segment(input_path: str, start: float, end: float) -> str:
+    """Re-encode a [start, end] segment of input_path to a new temp mp4."""
+    import subprocess as _subprocess
+
+    out = tempfile.NamedTemporaryFile(suffix="_trim.mp4", delete=False, prefix="clipvibe_")
+    out_path = out.name
+    out.close()
+    duration = max(0.1, end - start)
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", f"{start:.3f}",
+        "-i", input_path,
+        "-t", f"{duration:.3f}",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        out_path,
+    ]
+    result = _subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if result.returncode != 0:
+        Path(out_path).unlink(missing_ok=True)
+        raise RuntimeError(f"trim failed: {result.stderr.strip()[-200:]}")
+    return out_path
+
+
+@app.post("/assemble")
+async def assemble_endpoint(body: AssembleRequest):
+    if body.mood not in PACING:
+        raise HTTPException(status_code=400, detail=f"unknown mood: {body.mood}")
+    if not body.signed_urls:
+        raise HTTPException(status_code=400, detail="no clips provided")
+    if len(body.signed_urls) > 20:
+        raise HTTPException(status_code=400, detail="too many clips (max 20)")
+
+    downloaded: list[str] = []
+    trimmed: list[str] = []
+    try:
+        for url in body.signed_urls:
+            downloaded.append(await _download_to_temp(url))
+
+        if body.trim_to_primary_scene:
+            for src in downloaded:
+                try:
+                    scene = primary_scene(src, threshold=body.scene_threshold)
+                except SceneDetectionError as exc:
+                    logger.warning("scene detection failed (%s); keeping full clip", exc)
+                    scene = None
+                if scene is None or (scene[1] - scene[0]) < 0.5:
+                    trimmed.append(src)
+                else:
+                    trimmed.append(_trim_segment(src, scene[0], scene[1]))
+            input_paths = trimmed
+        else:
+            input_paths = downloaded
+
+        out_tmp = tempfile.NamedTemporaryFile(suffix="_assembled.mp4", delete=False, prefix="clipvibe_")
+        output_path = out_tmp.name
+        out_tmp.close()
+
+        assemble(input_paths, output_path, body.mood, target_fps=body.target_fps)
+
+        cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
+        return FileResponse(
+            output_path,
+            media_type="video/mp4",
+            filename="assembled.mp4",
+            background=cleanup,
+        )
+    except AssemblyError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("unexpected error during assembly")
+        raise HTTPException(status_code=500, detail=f"assembly failed: {exc}")
+    finally:
+        for p in downloaded:
+            Path(p).unlink(missing_ok=True)
+        for p in trimmed:
+            if p not in downloaded:
+                Path(p).unlink(missing_ok=True)
 
 
 @app.post("/grade")

@@ -71,11 +71,14 @@ jobs:
             ai-pipeline/routes/__init__.py \
             ai-pipeline/services/__init__.py \
             ai-pipeline/services/analyzer.py \
+            ai-pipeline/services/assembler.py \
             ai-pipeline/services/grader.py \
             ai-pipeline/services/mood_grades.py \
+            ai-pipeline/services/scene_detector.py \
             ai-pipeline/services/segmenter.py \
             ai-pipeline/scripts/build_luts.py \
             ai-pipeline/scripts/download_models.py \
+            ai-pipeline/scripts/smoke_test_assembly.py \
             ai-pipeline/utils/__init__.py \
             ai-pipeline/utils/ffmpeg.py
 
@@ -87,8 +90,11 @@ jobs:
             diff -q "ai-pipeline/luts/$f.cube" "/tmp/luts-fresh/$f.cube"
           done
 
-      - name: AI pipeline smoke test
+      - name: AI pipeline grading smoke test
         run: python ai-pipeline/scripts/smoke_test.py
+
+      - name: AI pipeline assembly smoke test
+        run: python ai-pipeline/scripts/smoke_test_assembly.py
 
   docker-build:
     name: Docker Compose Build
