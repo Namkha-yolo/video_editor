@@ -10,6 +10,7 @@ export interface JobProgressEvent {
   clip_index?: number;
   total_clips?: number;
   output_paths?: string[];
+  assembled_path?: string | null;
   error?: string;
 }
 

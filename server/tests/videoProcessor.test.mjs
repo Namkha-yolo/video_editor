@@ -113,6 +113,16 @@ function createFetchMock(options = {}) {
       });
     }
 
+    if (url.endsWith("/assemble")) {
+      if (options.failAssemble) {
+        return new Response("assembly unavailable", { status: 503 });
+      }
+      return new Response(Buffer.from(`assembled:${body.mood}`), {
+        status: 200,
+        headers: { "Content-Type": "video/mp4" },
+      });
+    }
+
     throw new Error(`Unexpected URL: ${url}`);
   };
 
@@ -175,11 +185,46 @@ export async function run() {
         );
         assert.ok(secondClip.body.gain_r < 1);
         assert.ok(secondClip.body.gain_b > 1);
+        const assembleRequests = requests.filter((r) => r.url.endsWith("/assemble"));
+        assert.equal(assembleRequests.length, 1);
+        assert.equal(assembleRequests[0].body.mood, "cinematic");
+        assert.equal(assembleRequests[0].body.signed_urls.length, 2);
         assert.equal(updates[0]?.status, "grading");
-        assert.equal(updates[1]?.status, "complete");
-        assert.equal(uploads.length, 2);
+        assert.equal(updates[1]?.status, "assembling");
+        assert.equal(updates[2]?.status, "complete");
+        assert.equal(updates[2]?.assembled_path, "user-1/job-1/assembled.mp4");
+        assert.equal(uploads.length, 3);
+        assert.equal(uploads[2].path, "user-1/job-1/assembled.mp4");
         assert.equal(removals.length, 0);
         assert.equal(progressEvents.at(-1)?.status, "complete");
+        assert.equal(progressEvents.at(-1)?.assembled_path, "user-1/job-1/assembled.mp4");
+      },
+    },
+    {
+      name: "processor still completes when /assemble fails",
+      run: async () => {
+        const { client, updates, uploads } = createSupabaseMock();
+        const { fetchMock } = createFetchMock({ failAssemble: true });
+        const progressEvents = [];
+
+        await processGradingJob("job-3", "hype", ["clip-1", "clip-2"], {
+          supabaseClient: client,
+          fetchImpl: fetchMock,
+          pipelineUrl: "http://pipeline.local",
+          emitProgress: (payload) => {
+            progressEvents.push(payload);
+          },
+          computeExposure: buildExposureAdjustment,
+          now: () => "2026-03-09T12:00:00.000Z",
+        });
+
+        // Per-clip uploads still happen, but the assembled upload is skipped.
+        assert.equal(uploads.length, 2);
+        const finalUpdate = updates.at(-1);
+        assert.equal(finalUpdate?.status, "complete");
+        assert.equal(finalUpdate?.assembled_path, null);
+        assert.equal(progressEvents.at(-1)?.status, "complete");
+        assert.equal(progressEvents.at(-1)?.assembled_path, null);
       },
     },
     {

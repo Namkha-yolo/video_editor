@@ -22,6 +22,8 @@ interface JobDetail {
   clip_ids: string[];
   error_message: string | null;
   clips: JobClip[];
+  assembled_url: string | null;
+  assembled_download_url: string | null;
 }
 
 function triggerDownload(url: string) {
@@ -166,21 +168,46 @@ export default function ExportPage() {
   return (
     <section className="export-page">
       <header className="export-header">
-        <h1 className="export-title">Your {formatMood(job.mood)} clips</h1>
+        <h1 className="export-title">Your {formatMood(job.mood)} reel</h1>
         <p className="export-subtitle">
-          {downloadableClips.length} of {job.clips.length} clip
-          {job.clips.length === 1 ? "" : "s"} ready to download
+          {job.assembled_url
+            ? `${job.clips.length} clip${job.clips.length === 1 ? "" : "s"} assembled into one ${formatMood(job.mood)} cut`
+            : `${downloadableClips.length} of ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"} ready to download`}
         </p>
       </header>
 
+      {job.assembled_url ? (
+        <figure className="export-hero">
+          <video
+            className="export-hero-video"
+            src={job.assembled_url}
+            controls
+            preload="metadata"
+            playsInline
+          />
+          <figcaption className="export-hero-caption">
+            Assembled with mood-matched pacing, transitions, and audio
+          </figcaption>
+        </figure>
+      ) : null}
+
       <div className="export-toolbar">
+        {job.assembled_download_url ? (
+          <button
+            type="button"
+            className="export-btn"
+            onClick={() => triggerDownload(job.assembled_download_url!)}
+          >
+            Download Final Video
+          </button>
+        ) : null}
         <button
           type="button"
-          className="export-btn"
+          className="export-btn export-btn--secondary"
           onClick={handleDownloadAll}
           disabled={downloadableClips.length === 0 || downloadingAll}
         >
-          {downloadingAll ? "Downloading…" : "Download All"}
+          {downloadingAll ? "Downloading…" : "Download Individual Clips"}
         </button>
         <button type="button" className="export-btn export-btn--secondary" onClick={handleRerun}>
           Re-run with different mood

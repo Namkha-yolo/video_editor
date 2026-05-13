@@ -188,8 +188,21 @@ router.get("/:id", requireAuth, async (req, res) => {
         )
       : [];
 
+    const assembledPath: string | null = job.assembled_path || null;
+    const [assembledUrl, assembledDownloadUrl] = assembledPath
+      ? await Promise.all([
+          createSignedUrls("outputs", [assembledPath], 3600).then((urls) => urls[0]),
+          createSignedUrls("outputs", [assembledPath], 3600, [`clipvibe-${job.mood}.mp4`]).then(
+            (urls) => urls[0]
+          ),
+        ])
+      : [null, null];
+
     return res.json({
       ...job,
+      assembled_path: assembledPath,
+      assembled_url: assembledUrl,
+      assembled_download_url: assembledDownloadUrl,
       clips: orderedClips.map((clip: any, index: number) => ({
         id: clip.id,
         file_name: clip.file_name,
@@ -231,7 +244,7 @@ router.get("/:id/download", requireAuth, async (req, res) => {
     }
 
     const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
-    if (outputPaths.length === 0) {
+    if (outputPaths.length === 0 && !job.assembled_path) {
       return res.status(404).json({ error: "No output files available" });
     }
 
@@ -249,9 +262,18 @@ router.get("/:id/download", requireAuth, async (req, res) => {
       })
     );
 
+    let assembledDownload: { url: string; path: string } | null = null;
+    if (job.assembled_path) {
+      const { data } = await supabase.storage
+        .from("outputs")
+        .createSignedUrl(job.assembled_path, 7200, { download: `clipvibe-${job.mood}.mp4` });
+      assembledDownload = { url: data?.signedUrl || "", path: job.assembled_path };
+    }
+
     return res.json({
       job_id: job.id,
       mood: job.mood,
+      assembled: assembledDownload,
       download_urls: downloadUrls,
       expires_in: "2 hours",
     });
@@ -268,7 +290,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("output_paths")
+      .select("output_paths, assembled_path")
       .eq("id", id)
       .eq("user_id", userId)
       .single();
@@ -278,8 +300,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
     }
 
     const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
-    if (outputPaths.length > 0) {
-      await supabase.storage.from("outputs").remove(outputPaths);
+    const pathsToRemove = [...outputPaths, ...(job.assembled_path ? [job.assembled_path] : [])];
+    if (pathsToRemove.length > 0) {
+      await supabase.storage.from("outputs").remove(pathsToRemove);
     }
 
     const { error: deleteError } = await supabase

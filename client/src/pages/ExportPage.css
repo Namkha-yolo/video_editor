@@ -77,6 +77,48 @@
   background: transparent;
 }
 
+.export-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 18px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+}
+
+.export-hero-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 10px;
+  border: 1px solid #1f2937;
+  object-fit: contain;
+}
+
+.export-hero-caption {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.layout--light .export-hero {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.layout--light .export-hero-video {
+  border-color: #e5e7eb;
+}
+
+.layout--light .export-hero-caption {
+  color: #6b7280;
+}
+
 .export-clip-list {
   display: flex;
   flex-direction: column;

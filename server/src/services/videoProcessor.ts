@@ -176,6 +176,82 @@ async function requestGrade(
   return Buffer.from(await response.arrayBuffer());
 }
 
+async function runAssembly(
+  jobId: string,
+  mood: Mood,
+  userId: string,
+  outputPaths: string[],
+  dependencies: VideoProcessorDependencies
+): Promise<string | null> {
+  dependencies.emitProgress({
+    job_id: jobId,
+    status: "assembling",
+    total_clips: outputPaths.length,
+    message: "Assembling final video",
+  });
+
+  try {
+    await dependencies.supabaseClient
+      .from("jobs")
+      .update({
+        status: "assembling",
+        error_message: null,
+        updated_at: dependencies.now(),
+      })
+      .eq("id", jobId);
+
+    const gradedUrls = await Promise.all(
+      outputPaths.map(async (path) => {
+        const { data, error } = await dependencies.supabaseClient.storage
+          .from("outputs")
+          .createSignedUrl(path, 3600);
+        if (error || !data?.signedUrl) {
+          throw new Error(`Failed to sign graded URL for ${path}: ${error?.message || "no url"}`);
+        }
+        return data.signedUrl;
+      })
+    );
+
+    const response = await dependencies.fetchImpl(`${dependencies.pipelineUrl}/assemble`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        signed_urls: gradedUrls,
+        mood,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Assemble request failed: ${await readErrorMessage(response)}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const assembledPath = `${userId}/${jobId}/assembled.mp4`;
+
+    const { error: uploadError } = await dependencies.supabaseClient.storage
+      .from("outputs")
+      .upload(assembledPath, buffer, {
+        contentType: "video/mp4",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload assembled video: ${uploadError.message}`);
+    }
+
+    return assembledPath;
+  } catch (error: any) {
+    console.warn(`Assembly failed for job ${jobId}: ${error?.message || error}`);
+    dependencies.emitProgress({
+      job_id: jobId,
+      status: "assembling",
+      total_clips: outputPaths.length,
+      message: `Assembly skipped: ${error?.message || error}`,
+    });
+    return null;
+  }
+}
+
 export async function processGradingJob(
   jobId: string,
   mood: Mood,
@@ -276,11 +352,23 @@ export async function processGradingJob(
       outputPaths.push(outputPath);
     }
 
+    const assembledPath = await runAssembly(
+      jobId,
+      mood,
+      orderedClips[0].user_id,
+      outputPaths,
+      dependencies
+    );
+    if (assembledPath) {
+      uploadedOutputPaths.push(assembledPath);
+    }
+
     await dependencies.supabaseClient
       .from("jobs")
       .update({
         status: "complete",
         output_paths: outputPaths,
+        assembled_path: assembledPath,
         error_message: null,
         updated_at: dependencies.now(),
       })
@@ -291,7 +379,8 @@ export async function processGradingJob(
       status: "complete",
       total_clips: outputPaths.length,
       output_paths: outputPaths,
-      message: "Job complete",
+      assembled_path: assembledPath,
+      message: assembledPath ? "Job complete" : "Job complete (assembly skipped)",
     });
 
     return outputPaths;

@@ -4,6 +4,7 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
   queued: "Queued",
   analyzing: "Analyzing",
   grading: "Grading",
+  assembling: "Assembling",
   complete: "Complete",
   failed: "Error",
 };

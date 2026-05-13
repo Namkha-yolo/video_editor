@@ -4,7 +4,7 @@ import { io, type Socket } from "socket.io-client";
 import api from "@/lib/api";
 import "./ProcessingPage.css";
 
-type Status = "queued" | "analyzing" | "grading" | "complete" | "failed";
+type Status = "queued" | "analyzing" | "grading" | "assembling" | "complete" | "failed";
 
 interface ProgressEvent {
   job_id: string;
@@ -15,6 +15,7 @@ interface ProgressEvent {
   total_clips?: number;
   error?: string;
   output_paths?: string[];
+  assembled_path?: string | null;
 }
 
 interface JobStateResponse {
@@ -28,6 +29,7 @@ const STATUS_LABEL: Record<Status, string> = {
   queued: "Queued",
   analyzing: "Analyzing clips",
   grading: "Grading clips",
+  assembling: "Assembling final video",
   complete: "Complete",
   failed: "Failed",
 };
@@ -39,9 +41,11 @@ function computeProgress(event: ProgressEvent): number {
     case "queued":
       return 0;
     case "analyzing":
-      return Math.min(50, Math.round(5 + (index / total) * 45));
+      return Math.min(40, Math.round(5 + (index / total) * 35));
     case "grading":
-      return Math.min(99, Math.round(50 + (index / total) * 50));
+      return Math.min(80, Math.round(40 + (index / total) * 40));
+    case "assembling":
+      return 92;
     case "complete":
       return 100;
     case "failed":

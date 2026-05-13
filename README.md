@@ -548,10 +548,14 @@ create table jobs (
   status text not null default 'queued',
   clip_ids uuid[] not null,
   output_paths text[] default '{}',
+  assembled_path text,
   error_message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+-- For an existing database, add the assembled_path column with:
+--   alter table jobs add column if not exists assembled_path text;
 
 -- Row Level Security (users can only see their own data)
 alter table clips enable row level security;
