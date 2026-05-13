@@ -36,4 +36,11 @@ export interface JobDownloadResponse {
   }>;
 }
 
-export type StatusFilter = "all" | "queued" | "analyzing" | "grading" | "complete" | "failed";
+export type StatusFilter =
+  | "all"
+  | "queued"
+  | "analyzing"
+  | "grading"
+  | "assembling"
+  | "complete"
+  | "failed";

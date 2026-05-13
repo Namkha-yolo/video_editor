@@ -200,6 +200,7 @@ export default function DashboardPage() {
       queued: 0,
       analyzing: 0,
       grading: 0,
+      assembling: 0,
       complete: 0,
       failed: 0,
     };
