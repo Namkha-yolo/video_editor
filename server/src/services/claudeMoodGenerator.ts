@@ -117,13 +117,15 @@ export async function generateMoodRecipe(prompt: string): Promise<MoodRecipe> {
 
   let response: Anthropic.Message;
   try {
+    // Forced tool_choice and adaptive thinking are mutually exclusive in the
+    // Anthropic API, so we use forced tool_choice (which guarantees a valid
+    // structured recipe via strict mode) and skip thinking for this task.
     response = await getClient().messages.create({
       model: "claude-opus-4-7",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
       tools: [RECIPE_TOOL],
       tool_choice: { type: "tool", name: "create_lut_recipe" },
-      thinking: { type: "adaptive" },
       messages: [
         {
           role: "user",
