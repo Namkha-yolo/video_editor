@@ -9,6 +9,7 @@ import uploadRoutes from "./routes/upload.js";
 import jobRoutes from "./routes/jobs.js";
 import moodRoutes from "./routes/moods.js";
 import clipRoutes from "./routes/clips.js";
+import shareRoutes from "./routes/shares.js";
 import { setJobEventEmitter } from "./services/jobEvents.js";
 import { getRateLimiterConfig } from "./services/rateLimiters.js";
 
@@ -30,6 +31,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/moods", moodRoutes);
 app.use("/api/clips", clipRoutes);
+app.use("/api/shares", shareRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -49,6 +51,7 @@ app.get("/", (_req, res) => {
       upload: "/api/upload",
       clips: "/api/clips",
       jobs: "/api/jobs",
+      shares: "/api/shares",
     },
     features: {
       claude_rate_limiting: true,
