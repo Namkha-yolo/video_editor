@@ -6,30 +6,14 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [isMatch, setIsMatch] = useState<boolean | null>(null);
 
   const [loadingProvider, setLoadingProvider] = useState<"email" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPasswordEnough, setIsPasswordEnough] = useState<boolean | null>(
-    null,
-  );
 
   // check between password and confirm password
-  useEffect(() => {
-    if (!confirm) {
-      setIsMatch(null);
-      return;
-    }
-    setIsMatch(password === confirm);
-  }, [password, confirm]);
+  const isMatch = confirm ? password === confirm : null;
+  const isPasswordEnough = password ? password.length >= 6 : null;
 
-  useEffect(() => {
-    if (!password) {
-      setIsPasswordEnough(null);
-      return;
-    }
-    setIsPasswordEnough(password.length >= 6);
-  }, [password]);
 
   const handleSignup = async () => {
     setErrorMessage(null);
@@ -122,52 +106,21 @@ export default function SignupPage() {
 
           {/* check whether the length of password is enough */}
           {isPasswordEnough === false && (
-            <p
-              style={{
-                color: "#e74c3c",
-                fontSize: "0.9rem",
-                textAlign: "center",
-              }}
-            >
+            <p className="login-feedback" style={{ color: "#e74c3c" }}>
               Password must be at least 6 characters long
             </p>
           )}
 
           {isPasswordEnough === true && (
-            <p
-              style={{
-                color: "#27ae60",
-                fontSize: "0.9rem",
-                textAlign: "center",
-              }}
-            >
+            <p className="login-feedback" style={{ color: "#27ae60" }}>
               Password length is valid
             </p>
           )}
 
           {/* check it is match between password and confirm password. */}
           {isMatch === false && (
-            <p
-              style={{
-                color: "#e74c3c",
-                fontSize: "0.9rem",
-                marginTop: "0.3rem",
-                textAlign: "center",
-              }}
-            >
+            <p className="login-feedback" style={{ color: "#e74c3c" }}>
               Passwords do not match
-            </p>
-          )}
-          {isMatch === true && (
-            <p
-              style={{
-                color: "#27ae60",
-                fontSize: "0.9rem",
-                marginTop: "0.3rem",
-                textAlign: "center",
-              }}
-            >
-              Passwords match
             </p>
           )}
         </div>

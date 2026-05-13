@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
+import PasswordResetPage from "@/pages/PasswordResetPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
@@ -61,6 +62,7 @@ export default function App() {
           </PublicOnlyRoute>
         }
       />
+      <Route path="/passwordReset" element={<PasswordResetPage />} />
       <Route
         element={
           <ProtectedRoute>
