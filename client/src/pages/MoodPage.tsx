@@ -161,6 +161,16 @@ export default function MoodPage() {
     setCustomGrading(preset.grading);
   };
 
+  const handleRandomize = () => {
+    const randomGrading = {} as MoodGrading;
+    for (const control of CUSTOM_MOOD_CONTROLS) {
+      const steps = Math.floor((control.max - control.min) / control.step);
+      const value = control.min + Math.floor(Math.random() * (steps + 1)) * control.step;
+      (randomGrading as any)[control.key] = value;
+    }
+    setCustomGrading(sanitizeCustomGrading(randomGrading));
+  };
+
   const handleDeleteCustomMood = (presetId: string) => {
     const next = customMoods.filter((preset) => preset.id !== presetId);
     void syncCustomMoods(next);
@@ -261,13 +271,23 @@ export default function MoodPage() {
               Tune a reusable grading preset with the same controls used by the renderer.
             </p>
           </div>
-          <button
-            className="custom-mood-panel__save"
-            type="button"
-            onClick={handleSaveCustomMood}
-          >
-            Save Preset
-          </button>
+          <div className="custom-mood-panel__actions">
+            <button
+              className="custom-mood-panel__randomize"
+              type="button"
+              onClick={handleRandomize}
+              title="Randomize sliders"
+            >
+              Randomize
+            </button>
+            <button
+              className="custom-mood-panel__save"
+              type="button"
+              onClick={handleSaveCustomMood}
+            >
+              Save Preset
+            </button>
+          </div>
         </div>
 
         <label className="custom-mood-name">

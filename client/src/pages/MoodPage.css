@@ -216,6 +216,30 @@
   line-height: 1.5;
 }
 
+.custom-mood-panel__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.custom-mood-panel__randomize {
+  border: 1px solid #374151;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.custom-mood-panel__randomize:hover {
+  border-color: #6b7280;
+  color: #f9fafb;
+}
+
 .custom-mood-panel__save,
 .custom-mood-card__delete {
   border: 1px solid #2563eb;
