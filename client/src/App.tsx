@@ -7,6 +7,7 @@ import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
 import ProcessingPage from "@/pages/ProcessingPage";
 import ExportPage from "@/pages/ExportPage";
+import SharePage from "@/pages/SharePage";
 import { useAuthStore } from "./store/authStore";
 import { useEffect } from "react";
 
@@ -45,6 +46,7 @@ export default function App() {
   }, [initAuth]);
   return (
     <Routes>
+      <Route path="/share/:token" element={<SharePage />} />
       <Route
         path="/login"
         element={
