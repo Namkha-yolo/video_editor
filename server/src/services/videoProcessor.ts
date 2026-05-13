@@ -59,6 +59,7 @@ export interface VideoProcessorDependencies {
 
 export interface ProcessJobOptions {
   generateSoundtrack?: boolean;
+  musicPrompt?: string;
   customMood?: CustomMood;
   audioMix?: AudioMix;
 }
@@ -192,6 +193,7 @@ async function runAssembly(
   outputPaths: string[],
   analyses: ClipAnalysis[],
   generateSoundtrack: boolean,
+  musicPrompt: string | undefined,
   customPacing: CustomMood["pacing"] | undefined,
   audioMix: AudioMix | undefined,
   dependencies: VideoProcessorDependencies
@@ -234,6 +236,7 @@ async function runAssembly(
         auto_order: true,
         with_soundtrack: true,
         generate_soundtrack: generateSoundtrack,
+        music_prompt: musicPrompt,
         clip_analyses: analyses.map((a) => ({
           brightness: a.brightness,
           contrast: a.contrast,
@@ -282,7 +285,7 @@ export async function processGradingJob(
   clipIds: string[],
   options: ProcessJobOptions & Partial<VideoProcessorDependencies> = {}
 ) {
-  const { generateSoundtrack = false, customMood, audioMix, ...overrides } = options;
+  const { generateSoundtrack = false, musicPrompt, customMood, audioMix, ...overrides } = options;
   const dependencies = getDependencies(overrides);
   const uploadedOutputPaths: string[] = [];
 
@@ -396,6 +399,7 @@ export async function processGradingJob(
       outputPaths,
       analyses,
       generateSoundtrack,
+      musicPrompt,
       customMood?.pacing,
       audioMix,
       dependencies

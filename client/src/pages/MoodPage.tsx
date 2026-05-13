@@ -40,8 +40,8 @@ interface CustomMoodResponse {
   pacing?: CustomMoodPacing;
 }
 
-const DEFAULT_CLIP_VOLUME = 0.9;
-const DEFAULT_MUSIC_VOLUME = 0.22;
+const DEFAULT_CLIP_VOLUME = 0.85;
+const DEFAULT_MUSIC_VOLUME = 0.55;
 
 export default function MoodPage() {
   const navigate = useNavigate();
@@ -50,6 +50,7 @@ export default function MoodPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [generateSoundtrack, setGenerateSoundtrack] = useState(false);
+  const [musicPrompt, setMusicPrompt] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
   const [customMood, setCustomMood] = useState<CustomMoodResponse | null>(null);
   const [customError, setCustomError] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export default function MoodPage() {
   }
 
   async function handleStartGrading() {
-    if (!selectedMood) return;
+    if (!selectedMood && !customMood) return;
     if (clips.length === 0) {
       setError("No clips uploaded. Go back and upload some clips first.");
       return;
@@ -106,10 +107,14 @@ export default function MoodPage() {
         Math.abs(clipVolume - DEFAULT_CLIP_VOLUME) > 0.001 ||
         Math.abs(musicVolume - DEFAULT_MUSIC_VOLUME) > 0.001;
 
+      const baseMood: Mood = selectedMood ?? "cinematic";
+
       const { data } = await api.post<{ job_id: string }>("/jobs", {
-        mood: selectedMood,
+        mood: baseMood,
         clip_ids: clips.map((c) => c.id),
         generate_soundtrack: generateSoundtrack,
+        music_prompt:
+          generateSoundtrack && musicPrompt.trim() ? musicPrompt.trim() : undefined,
         custom_mood: customMood
           ? {
               lut_path: customMood.lut_path,
@@ -275,11 +280,31 @@ export default function MoodPage() {
         </span>
       </label>
 
+      {generateSoundtrack ? (
+        <div className="mood-music-prompt">
+          <label className="mood-music-prompt-label" htmlFor="music-prompt">
+            Music vibe (optional)
+          </label>
+          <input
+            id="music-prompt"
+            type="text"
+            className="mood-music-prompt-input"
+            placeholder='e.g. "lo-fi piano with rainy ambience"'
+            value={musicPrompt}
+            maxLength={500}
+            onChange={(event) => setMusicPrompt(event.target.value)}
+          />
+          <p className="mood-music-prompt-hint">
+            Leave blank to use the default prompt for the selected mood.
+          </p>
+        </div>
+      ) : null}
+
       {error && <p className="mood-page-error">{error}</p>}
 
       <button
         className="mood-start-btn"
-        disabled={!selectedMood || loading}
+        disabled={(!selectedMood && !customMood) || loading}
         onClick={handleStartGrading}
       >
         {loading ? "Starting…" : "Start Grading"}

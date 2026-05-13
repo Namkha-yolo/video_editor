@@ -43,6 +43,7 @@ const CreateJobSchema = z.object({
   mood: z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]),
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
   generate_soundtrack: z.boolean().optional(),
+  music_prompt: z.string().trim().min(1).max(500).optional(),
   custom_mood: CustomMoodInputSchema.optional(),
   audio_mix: AudioMixSchema.optional(),
 });
@@ -162,6 +163,7 @@ router.post("/", requireAuth, async (req, res) => {
       mood: parsedBody.data.mood,
       clipIds,
       generateSoundtrack,
+      musicPrompt: parsedBody.data.music_prompt,
       customMood: customMood ?? undefined,
       audioMix: audioMix ?? undefined,
     });

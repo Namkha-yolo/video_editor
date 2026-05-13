@@ -10,6 +10,7 @@ export interface GradingJobPayload {
   mood: Mood;
   clipIds: string[];
   generateSoundtrack?: boolean;
+  musicPrompt?: string;
   customMood?: CustomMood;
   audioMix?: AudioMix;
 }
@@ -21,6 +22,7 @@ export interface JobRunnerDependencies {
     clipIds: string[],
     options: {
       generateSoundtrack: boolean;
+      musicPrompt?: string;
       customMood?: CustomMood;
       audioMix?: AudioMix;
     }
@@ -45,6 +47,7 @@ export function createJobRunner(dependencies: JobRunnerDependencies) {
 
       await dependencies.processJob(jobId, mood, clipIds, {
         generateSoundtrack,
+        musicPrompt: payload.musicPrompt,
         customMood: payload.customMood,
         audioMix: payload.audioMix,
       });

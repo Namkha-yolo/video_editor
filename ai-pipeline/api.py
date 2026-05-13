@@ -110,6 +110,7 @@ class AssembleRequest(BaseModel):
     with_soundtrack: bool = False
     generate_soundtrack: bool = False
     soundtrack_duration: int = 30
+    music_prompt: str | None = None
     custom_pacing: CustomPacingInput | None = None
     clip_volume: float | None = None
     music_volume: float | None = None
@@ -363,9 +364,17 @@ async def assemble_endpoint(body: AssembleRequest):
         generated_path: Path | None = None
         if body.generate_soundtrack:
             try:
-                generated_path = generate_for_mood(body.mood, duration=body.soundtrack_duration)
+                user_prompt = (body.music_prompt or "").strip() or None
+                generated_path = generate_for_mood(
+                    body.mood,
+                    duration=body.soundtrack_duration,
+                    prompt_override=user_prompt,
+                )
                 music_path = str(generated_path)
-                logger.info("soundtrack: mood=%s source=generated path=%s", body.mood, generated_path)
+                logger.info(
+                    "soundtrack: mood=%s source=generated path=%s prompt_override=%s",
+                    body.mood, generated_path, bool(user_prompt),
+                )
             except GenerationError as exc:
                 logger.warning("soundtrack generation failed (%s); falling back to library", exc)
 

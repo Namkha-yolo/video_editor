@@ -159,8 +159,8 @@ def assemble(
     target_fps: int = 30,
     timeout: int = 900,
     music_path: str | None = None,
-    music_volume: float = 0.22,
-    clip_audio_volume: float = 0.9,
+    music_volume: float = 0.55,
+    clip_audio_volume: float = 0.85,
     pacing_override: dict | None = None,
 ) -> str:
     if not input_paths:
@@ -199,8 +199,10 @@ def assemble(
         cmd += ["-stream_loop", "-1", "-i", music_path]
         music_idx = input_idx
         input_idx += 1
+        # loudnorm the music too so it sits at a predictable level alongside
+        # the clip audio (which is already loudnorm-ed in the per-clip chains).
         graph += (
-            f";[{music_idx}:a]volume={music_volume:.3f}[music_v]"
+            f";[{music_idx}:a]loudnorm=I=-18:TP=-1.5:LRA=11,volume={music_volume:.3f}[music_v]"
             f";[a]volume={clip_audio_volume:.3f}[clip_v]"
             f";[clip_v][music_v]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[a_out]"
         )

@@ -183,23 +183,26 @@ def grade_clip(
 
     mask_path = None
     if enable_masking and mood.person_protection > 1e-3:
-        from .segmenter import extract_person_mask_video, SegmentationError
-
-        mask_tmp = tempfile.NamedTemporaryFile(
-            suffix="_mask.mp4", delete=False, prefix="clipvibe_"
-        )
-        mask_path = mask_tmp.name
-        mask_tmp.close()
         try:
-            extract_person_mask_video(
-                file_path,
-                mask_path,
-                protection_strength=mood.person_protection,
+            from .segmenter import extract_person_mask_video, SegmentationError
+        except ImportError as exc:
+            logger.warning("Person segmentation unavailable (%s); skipping mask", exc)
+        else:
+            mask_tmp = tempfile.NamedTemporaryFile(
+                suffix="_mask.mp4", delete=False, prefix="clipvibe_"
             )
-        except SegmentationError as exc:
-            Path(mask_path).unlink(missing_ok=True)
-            mask_path = None
-            logger.warning("Person segmentation failed (%s); falling back to global grade", exc)
+            mask_path = mask_tmp.name
+            mask_tmp.close()
+            try:
+                extract_person_mask_video(
+                    file_path,
+                    mask_path,
+                    protection_strength=mood.person_protection,
+                )
+            except (SegmentationError, ImportError, ModuleNotFoundError) as exc:
+                Path(mask_path).unlink(missing_ok=True)
+                mask_path = None
+                logger.warning("Person segmentation failed (%s); falling back to global grade", exc)
 
     filter_string, is_complex = build_filter_spec(
         mood, exposure, mask_path=mask_path, lut_path_override=custom_lut_path
