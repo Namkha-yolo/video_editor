@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Copy, ExternalLink, Share2 } from "lucide-react";
 import api from "@/lib/api";
 import { useProjectStore } from "@/store/projectStore";
 import type { Clip, JobStatus, Mood } from "@clipvibe/shared";
@@ -51,6 +52,9 @@ export default function ExportPage() {
   const [rendering, setRendering] = useState<Resolution | null>(null);
   const [resolution, setResolution] = useState<Resolution>("1080p");
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [creatingShare, setCreatingShare] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     if (!jobId) return;
@@ -145,6 +149,32 @@ export default function ExportPage() {
       navigate("/mood");
     } catch (err: any) {
       setError(err?.response?.data?.error || "Could not load clips for re-run.");
+    }
+  }
+
+  async function copyShareUrl(url: string) {
+    await navigator.clipboard?.writeText(url);
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 1800);
+  }
+
+  async function handleCreateShare() {
+    if (!job) return;
+    setCreatingShare(true);
+    setError(null);
+    try {
+      const { data } = await api.post<{ share_url: string }>("/shares", {
+        job_id: job.id,
+        title: `${formatMood(job.mood)} ClipVibe export`,
+        allow_download: true,
+      });
+
+      setShareUrl(data.share_url);
+      await copyShareUrl(data.share_url);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Could not create share link.");
+    } finally {
+      setCreatingShare(false);
     }
   }
 
@@ -255,6 +285,15 @@ export default function ExportPage() {
         >
           {downloadingAll ? "Downloading…" : "Download Individual Clips"}
         </button>
+        <button
+          type="button"
+          className="export-btn export-btn--secondary export-btn--with-icon"
+          onClick={handleCreateShare}
+          disabled={downloadableClips.length === 0 || creatingShare}
+        >
+          <Share2 size={16} />
+          {creatingShare ? "Creating..." : "Create Share Link"}
+        </button>
         <button type="button" className="export-btn export-btn--secondary" onClick={handleRerun}>
           Re-run with different mood
         </button>
@@ -268,6 +307,37 @@ export default function ExportPage() {
       </div>
 
       {renderError ? <p className="export-error">{renderError}</p> : null}
+
+      {shareUrl ? (
+        <div className="export-share-panel">
+          <div>
+            <p className="export-share-title">Share link ready</p>
+            <p className="export-share-copy">
+              Anyone with this link can view the graded export without logging in.
+            </p>
+          </div>
+          <div className="export-share-row">
+            <input className="export-share-input" value={shareUrl} readOnly />
+            <button
+              type="button"
+              className="export-btn export-btn--with-icon"
+              onClick={() => void copyShareUrl(shareUrl)}
+            >
+              <Copy size={16} />
+              {shareCopied ? "Copied" : "Copy"}
+            </button>
+            <a
+              className="export-btn export-btn--secondary export-btn--with-icon export-share-open"
+              href={shareUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={16} />
+              Open
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       <div className="export-clip-list">
         {job.clips.map((clip, index) => (

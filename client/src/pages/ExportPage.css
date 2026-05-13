@@ -69,6 +69,10 @@
 }
 
 .export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 10px 20px;
   background: #3b82f6;
   color: #fff;
@@ -260,6 +264,55 @@
   justify-content: center;
 }
 
+.export-share-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.export-share-title {
+  margin: 0;
+  color: #f9fafb;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.export-share-copy {
+  margin: 4px 0 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.export-share-row {
+  display: flex;
+  gap: 10px;
+}
+
+.export-share-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.export-share-open {
+  text-decoration: none;
+}
+
+@media (max-width: 720px) {
+  .export-share-row {
+    flex-direction: column;
+  }
+}
+
 /* ── Light mode ── */
 .layout--light .export-title {
   color: #111827;
@@ -314,4 +367,19 @@
 
 .layout--light .export-preview-label {
   color: #6b7280;
+}
+
+.layout--light .export-share-panel {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.layout--light .export-share-title {
+  color: #111827;
+}
+
+.layout--light .export-share-input {
+  background: #f9fafb;
+  color: #111827;
+  border-color: #e5e7eb;
 }
