@@ -59,6 +59,10 @@ class GradeRequest(BaseModel):
     brightness: float = 0.0
     contrast: float = 1.0
     saturation: float = 1.0
+    gain_r: float = 1.0
+    gain_g: float = 1.0
+    gain_b: float = 1.0
+    enable_masking: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -218,12 +222,20 @@ async def grade(body: GradeRequest):
         brightness=body.brightness,
         contrast=body.contrast,
         saturation=body.saturation,
+        gain_r=body.gain_r,
+        gain_g=body.gain_g,
+        gain_b=body.gain_b,
     )
 
     tmp_path = await _download_to_temp(body.signed_url)
 
     try:
-        output_path = grade_clip(tmp_path, body.mood, exposure=exposure)
+        output_path = grade_clip(
+            tmp_path,
+            body.mood,
+            exposure=exposure,
+            enable_masking=body.enable_masking,
+        )
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(
             output_path,

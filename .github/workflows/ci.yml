@@ -73,7 +73,9 @@ jobs:
             ai-pipeline/services/analyzer.py \
             ai-pipeline/services/grader.py \
             ai-pipeline/services/mood_grades.py \
+            ai-pipeline/services/segmenter.py \
             ai-pipeline/scripts/build_luts.py \
+            ai-pipeline/scripts/download_models.py \
             ai-pipeline/utils/__init__.py \
             ai-pipeline/utils/ffmpeg.py
 
@@ -84,6 +86,9 @@ jobs:
           for f in nostalgic cinematic hype chill dreamy energetic; do
             diff -q "ai-pipeline/luts/$f.cube" "/tmp/luts-fresh/$f.cube"
           done
+
+      - name: AI pipeline smoke test
+        run: python ai-pipeline/scripts/smoke_test.py
 
   docker-build:
     name: Docker Compose Build

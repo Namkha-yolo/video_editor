@@ -3,8 +3,6 @@
 Provides two main functions:
   - probe(): extract video metadata (resolution, fps, duration, codec)
   - apply_filters(): build and run FFmpeg color-grading filter chains
-
-Supported filters: colorbalance, eq, colortemperature, curves, vignette, noise.
 """
 
 import json
@@ -156,28 +154,36 @@ def compute_ffmpeg_timeout(duration: float) -> int:
     return min(timeout, FFMPEG_TIMEOUT_MAX)
 
 
-def apply_filters(input_path: str, output_path: str, filter_string: str, timeout: int | None = None) -> bool:
-    """Apply an FFmpeg video-filter chain and write the result to *output_path*.
+def apply_filters(
+    input_path: str,
+    output_path: str,
+    filter_string: str,
+    timeout: int | None = None,
+    *,
+    complex_filter: bool = False,
+    extra_inputs: list[str] | None = None,
+) -> bool:
+    """Apply an FFmpeg filter spec to input_path and write to output_path.
 
-    The audio stream is copied without re-encoding.
-
-    Args:
-        input_path:    Path to the source video file.
-        output_path:   Path for the filtered output file.
-        filter_string: A valid FFmpeg ``-vf`` filter string, e.g.
-                       ``"eq=brightness=0.1:saturation=1.3,vignette=PI/4"``.
-        timeout:       Optional timeout in seconds. If None, uses FFMPEG_TIMEOUT_BASE.
-
-    Returns:
-        True on success, False on failure.
+    When complex_filter is False the spec is a -vf chain; when True it is a
+    -filter_complex graph whose final video pad is labelled [v].
     """
     effective_timeout = timeout if timeout is not None else FFMPEG_TIMEOUT_BASE
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i", input_path,
-        "-vf", filter_string,
+    base_args = ["ffmpeg", "-y", "-i", input_path]
+    for extra in extra_inputs or []:
+        base_args += ["-i", extra]
+
+    if complex_filter:
+        filter_args = [
+            "-filter_complex", filter_string,
+            "-map", "[v]",
+            "-map", "0:a?",
+        ]
+    else:
+        filter_args = ["-vf", filter_string]
+
+    encode_args = [
         "-c:v", "libx264",
         "-crf", "28",
         "-preset", "veryfast",
@@ -186,6 +192,8 @@ def apply_filters(input_path: str, output_path: str, filter_string: str, timeout
         "-c:a", "copy",
         output_path,
     ]
+
+    cmd = base_args + filter_args + encode_args
     logger.info("Running (timeout=%ds): %s", effective_timeout, shlex.join(cmd))
 
     try:

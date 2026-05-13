@@ -163,6 +163,9 @@ async function requestGrade(
       brightness: exposure.brightness,
       contrast: exposure.contrast,
       saturation: exposure.saturation,
+      gain_r: exposure.gain_r,
+      gain_g: exposure.gain_g,
+      gain_b: exposure.gain_b,
     }),
   });
 

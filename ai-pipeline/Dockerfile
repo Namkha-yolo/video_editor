@@ -5,6 +5,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 clipvibe
@@ -15,6 +16,8 @@ COPY --chown=clipvibe:clipvibe requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=clipvibe:clipvibe . .
+
+RUN python scripts/download_models.py
 
 USER clipvibe
 

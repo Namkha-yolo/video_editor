@@ -157,15 +157,24 @@ export async function run() {
             (r) =>
               typeof r.body.brightness === "number" &&
               typeof r.body.contrast === "number" &&
-              typeof r.body.saturation === "number"
+              typeof r.body.saturation === "number" &&
+              typeof r.body.gain_r === "number" &&
+              typeof r.body.gain_g === "number" &&
+              typeof r.body.gain_b === "number"
           ),
-          "every grade request carries exposure params"
+          "every grade request carries exposure + WB-gain params"
         );
-        // clip-1 is bright (0.8) → expect negative brightness adjustment.
         const firstClip = gradeRequests.find(
           (r) => r.url.endsWith("/grade") && r.body.signed_url.includes("first.mp4")
         );
-        assert.ok(firstClip.body.brightness < 0, "bright clip pulled down");
+        assert.ok(firstClip.body.brightness < 0);
+        assert.ok(firstClip.body.gain_r > 1);
+        assert.ok(firstClip.body.gain_b < 1);
+        const secondClip = gradeRequests.find(
+          (r) => r.url.endsWith("/grade") && r.body.signed_url.includes("second.mp4")
+        );
+        assert.ok(secondClip.body.gain_r < 1);
+        assert.ok(secondClip.body.gain_b > 1);
         assert.equal(updates[0]?.status, "grading");
         assert.equal(updates[1]?.status, "complete");
         assert.equal(uploads.length, 2);
@@ -195,7 +204,13 @@ export async function run() {
         assert.equal(gradeRequests.length, 2);
         assert.ok(
           gradeRequests.every(
-            (r) => r.body.brightness === 0 && r.body.contrast === 1 && r.body.saturation === 1
+            (r) =>
+              r.body.brightness === 0 &&
+              r.body.contrast === 1 &&
+              r.body.saturation === 1 &&
+              r.body.gain_r === 1 &&
+              r.body.gain_g === 1 &&
+              r.body.gain_b === 1
           ),
           "neutral exposure on analysis failure"
         );

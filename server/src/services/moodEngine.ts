@@ -100,7 +100,13 @@ export interface ExposureAdjustment {
   brightness: number;
   contrast: number;
   saturation: number;
+  gain_r: number;
+  gain_g: number;
+  gain_b: number;
 }
+
+const NEUTRAL_TEMP_K = 5500;
+const WB_GAIN_LIMIT = 0.15;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -110,20 +116,39 @@ function round(value: number, digits = 3) {
   return Number(value.toFixed(digits));
 }
 
+function computeWhiteBalanceGains(sourceK: number): { gain_r: number; gain_g: number; gain_b: number } {
+  if (!Number.isFinite(sourceK) || sourceK <= 0) {
+    return { gain_r: 1, gain_g: 1, gain_b: 1 };
+  }
+
+  const deltaK = sourceK - NEUTRAL_TEMP_K;
+  const coeff = clamp(deltaK / 10000, -WB_GAIN_LIMIT, WB_GAIN_LIMIT);
+
+  return {
+    gain_r: round(1 + coeff, 3),
+    gain_g: 1,
+    gain_b: round(1 - coeff, 3),
+  };
+}
+
 export function buildExposureAdjustment(
   _mood: Mood,
   clip: ClipAnalysis
 ): ExposureAdjustment {
   const brightness = clamp((0.5 - clip.brightness) * 0.4, -0.2, 0.2);
   const contrast = clamp(1.0 + (0.5 - clip.contrast) * 0.4, 0.7, 1.3);
+  const wb = computeWhiteBalanceGains(clip.color_temperature);
 
   return {
     brightness: round(brightness, 3),
     contrast: round(contrast, 3),
     saturation: 1.0,
+    gain_r: wb.gain_r,
+    gain_g: wb.gain_g,
+    gain_b: wb.gain_b,
   };
 }
 
 export function buildNeutralExposure(): ExposureAdjustment {
-  return { brightness: 0, contrast: 1, saturation: 1 };
+  return { brightness: 0, contrast: 1, saturation: 1, gain_r: 1, gain_g: 1, gain_b: 1 };
 }
