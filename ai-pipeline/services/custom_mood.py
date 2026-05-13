@@ -39,6 +39,22 @@ VIGNETTE_RANGE = (0.0, 0.8)
 GRAIN_RANGE = (0, 25)
 HALATION_RANGE = (0.0, 0.6)
 PERSON_PROTECTION_RANGE = (0.0, 1.0)
+SPEED_RANGE = (0.7, 1.4)
+TRANSITION_DURATION_RANGE = (0.1, 2.0)
+AUDIO_HIGHPASS_RANGE = (0, 400)
+AUDIO_LOWPASS_RANGE = (0, 16000)
+
+VALID_TRANSITIONS = frozenset({
+    "fade", "fadeblack", "fadewhite",
+    "wipeleft", "wiperight", "wipeup", "wipedown",
+    "slideleft", "slideright", "slideup", "slidedown",
+    "circleopen", "circleclose",
+    "horzopen", "horzclose", "vertopen", "vertclose",
+    "dissolve", "pixelize", "radial",
+    "smoothleft", "smoothright", "smoothup", "smoothdown",
+    "zoomin",
+})
+DEFAULT_TRANSITION = "fade"
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -63,6 +79,15 @@ def _normalise_triple(values: list, lo: float, hi: float, label: str) -> tuple:
 
 
 @dataclass(frozen=True)
+class CustomPacing:
+    speed: float
+    transition: str
+    transition_duration: float
+    audio_highpass: int
+    audio_lowpass: int
+
+
+@dataclass(frozen=True)
 class CustomRecipe:
     name: str
     title: str
@@ -72,6 +97,7 @@ class CustomRecipe:
     grain: int
     halation: float
     person_protection: float
+    pacing: CustomPacing
 
 
 def recipe_from_dict(payload: dict) -> CustomRecipe:
@@ -107,6 +133,23 @@ def recipe_from_dict(payload: dict) -> CustomRecipe:
         float(payload.get("person_protection", 0.4)), *PERSON_PROTECTION_RANGE
     )
 
+    speed = _clamp(float(payload.get("speed", 1.0)), *SPEED_RANGE)
+    transition_raw = str(payload.get("transition") or DEFAULT_TRANSITION).strip().lower()
+    transition = transition_raw if transition_raw in VALID_TRANSITIONS else DEFAULT_TRANSITION
+    transition_duration = _clamp(
+        float(payload.get("transition_duration", 0.6)), *TRANSITION_DURATION_RANGE
+    )
+    audio_highpass = int(_clamp(int(payload.get("audio_highpass", 0)), *AUDIO_HIGHPASS_RANGE))
+    audio_lowpass = int(_clamp(int(payload.get("audio_lowpass", 0)), *AUDIO_LOWPASS_RANGE))
+
+    pacing = CustomPacing(
+        speed=speed,
+        transition=transition,
+        transition_duration=transition_duration,
+        audio_highpass=audio_highpass,
+        audio_lowpass=audio_lowpass,
+    )
+
     mood = MoodGrade(
         name=name,
         title=title,
@@ -129,6 +172,7 @@ def recipe_from_dict(payload: dict) -> CustomRecipe:
         grain=grain,
         halation=halation,
         person_protection=person_protection,
+        pacing=pacing,
     )
 
 

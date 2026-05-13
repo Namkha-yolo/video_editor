@@ -50,6 +50,19 @@ def get_pacing(mood: str) -> PacingProfile:
     return PACING[mood]
 
 
+def pacing_from_overrides(base: PacingProfile, overrides: dict | None) -> PacingProfile:
+    """Layer a partial override dict onto a base pacing profile."""
+    if not overrides:
+        return base
+    return PacingProfile(
+        speed=float(overrides.get("speed", base.speed)),
+        transition=str(overrides.get("transition", base.transition)),
+        transition_duration=float(overrides.get("transition_duration", base.transition_duration)),
+        audio_highpass=int(overrides.get("audio_highpass", base.audio_highpass)),
+        audio_lowpass=int(overrides.get("audio_lowpass", base.audio_lowpass)),
+    )
+
+
 def _probe_clip(path: str) -> ClipMeta:
     cmd = [
         "ffprobe", "-v", "quiet", "-print_format", "json",
@@ -148,10 +161,11 @@ def assemble(
     music_path: str | None = None,
     music_volume: float = 0.22,
     clip_audio_volume: float = 0.9,
+    pacing_override: dict | None = None,
 ) -> str:
     if not input_paths:
         raise AssemblyError("no clips to assemble")
-    pacing = get_pacing(mood)
+    pacing = pacing_from_overrides(get_pacing(mood), pacing_override)
     metas = [_probe_clip(p) for p in input_paths]
 
     if target_resolution is None:

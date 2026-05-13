@@ -13,12 +13,26 @@ export interface CustomMoodRuntime {
   person_protection: number;
 }
 
+export interface CustomMoodPacing {
+  speed: number;
+  transition: string;
+  transition_duration: number;
+  audio_highpass: number;
+  audio_lowpass: number;
+}
+
 export interface CustomMood {
   lut_path: string;
   name?: string;
   title?: string;
   description?: string;
   runtime: CustomMoodRuntime;
+  pacing?: CustomMoodPacing;
+}
+
+export interface AudioMix {
+  clip_volume: number;
+  music_volume: number;
 }
 
 export interface MoodPreset {

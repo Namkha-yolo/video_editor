@@ -550,6 +550,7 @@ create table jobs (
   output_paths text[] default '{}',
   assembled_path text,
   custom_mood jsonb,
+  audio_mix jsonb,
   error_message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -558,6 +559,7 @@ create table jobs (
 -- For an existing database, add the new columns with:
 --   alter table jobs add column if not exists assembled_path text;
 --   alter table jobs add column if not exists custom_mood jsonb;
+--   alter table jobs add column if not exists audio_mix jsonb;
 
 -- Row Level Security (users can only see their own data)
 alter table clips enable row level security;

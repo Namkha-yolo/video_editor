@@ -91,6 +91,14 @@ class ClipAnalysisInput(BaseModel):
     color_temperature: int
 
 
+class CustomPacingInput(BaseModel):
+    speed: float | None = None
+    transition: str | None = None
+    transition_duration: float | None = None
+    audio_highpass: int | None = None
+    audio_lowpass: int | None = None
+
+
 class AssembleRequest(BaseModel):
     signed_urls: list[str]
     mood: str
@@ -102,6 +110,9 @@ class AssembleRequest(BaseModel):
     with_soundtrack: bool = False
     generate_soundtrack: bool = False
     soundtrack_duration: int = 30
+    custom_pacing: CustomPacingInput | None = None
+    clip_volume: float | None = None
+    music_volume: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -364,14 +375,19 @@ async def assemble_endpoint(body: AssembleRequest):
                 music_path = str(track.path)
                 logger.info("soundtrack: mood=%s source=library track=%s kind=%s", body.mood, track.path.name, track.kind)
 
+        pacing_override = body.custom_pacing.model_dump(exclude_none=True) if body.custom_pacing else None
+        assemble_kwargs: dict = {
+            "target_fps": body.target_fps,
+            "music_path": music_path,
+            "pacing_override": pacing_override,
+        }
+        if body.clip_volume is not None:
+            assemble_kwargs["clip_audio_volume"] = max(0.0, min(1.5, float(body.clip_volume)))
+        if body.music_volume is not None:
+            assemble_kwargs["music_volume"] = max(0.0, min(1.5, float(body.music_volume)))
+
         try:
-            assemble(
-                input_paths,
-                output_path,
-                body.mood,
-                target_fps=body.target_fps,
-                music_path=music_path,
-            )
+            assemble(input_paths, output_path, body.mood, **assemble_kwargs)
         finally:
             if generated_path is not None:
                 generated_path.unlink(missing_ok=True)
@@ -428,6 +444,13 @@ async def build_custom_mood(body: CustomMoodBuildRequest):
             "grain": recipe.grain,
             "halation": recipe.halation,
             "person_protection": recipe.person_protection,
+        },
+        "pacing": {
+            "speed": recipe.pacing.speed,
+            "transition": recipe.pacing.transition,
+            "transition_duration": recipe.pacing.transition_duration,
+            "audio_highpass": recipe.pacing.audio_highpass,
+            "audio_lowpass": recipe.pacing.audio_lowpass,
         },
         "cube": cube,
     }

@@ -1,7 +1,7 @@
 import { supabase } from "../config/supabase.js";
 import { emitJobProgress } from "./jobEvents.js";
 import { buildExposureAdjustment, type ExposureAdjustment } from "./moodEngine.js";
-import type { CustomMood, Mood } from "../../../shared/types/mood.js";
+import type { AudioMix, CustomMood, Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 
 interface ClipRecord {
@@ -60,6 +60,7 @@ export interface VideoProcessorDependencies {
 export interface ProcessJobOptions {
   generateSoundtrack?: boolean;
   customMood?: CustomMood;
+  audioMix?: AudioMix;
 }
 
 function getDependencies(
@@ -191,6 +192,8 @@ async function runAssembly(
   outputPaths: string[],
   analyses: ClipAnalysis[],
   generateSoundtrack: boolean,
+  customPacing: CustomMood["pacing"] | undefined,
+  audioMix: AudioMix | undefined,
   dependencies: VideoProcessorDependencies
 ): Promise<string | null> {
   dependencies.emitProgress({
@@ -236,6 +239,9 @@ async function runAssembly(
           contrast: a.contrast,
           color_temperature: a.color_temperature,
         })),
+        custom_pacing: customPacing ?? undefined,
+        clip_volume: audioMix?.clip_volume,
+        music_volume: audioMix?.music_volume,
       }),
     });
 
@@ -276,7 +282,7 @@ export async function processGradingJob(
   clipIds: string[],
   options: ProcessJobOptions & Partial<VideoProcessorDependencies> = {}
 ) {
-  const { generateSoundtrack = false, customMood, ...overrides } = options;
+  const { generateSoundtrack = false, customMood, audioMix, ...overrides } = options;
   const dependencies = getDependencies(overrides);
   const uploadedOutputPaths: string[] = [];
 
@@ -390,6 +396,8 @@ export async function processGradingJob(
       outputPaths,
       analyses,
       generateSoundtrack,
+      customMood?.pacing,
+      audioMix,
       dependencies
     );
     if (assembledPath) {

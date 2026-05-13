@@ -12,6 +12,14 @@ import { isResolutionKey, transcodeToBuffer, type ResolutionKey } from "../servi
 
 const router: RouterType = Router();
 
+const CustomPacingInputSchema = z.object({
+  speed: z.number().min(0.7).max(1.4),
+  transition: z.string().min(1).max(32),
+  transition_duration: z.number().min(0.1).max(2.0),
+  audio_highpass: z.number().int().min(0).max(400),
+  audio_lowpass: z.number().int().min(0).max(16000),
+});
+
 const CustomMoodInputSchema = z.object({
   lut_path: z.string().min(1).max(255),
   name: z.string().min(1).max(64).optional(),
@@ -23,6 +31,12 @@ const CustomMoodInputSchema = z.object({
     halation: z.number().min(0).max(0.6),
     person_protection: z.number().min(0).max(1),
   }),
+  pacing: CustomPacingInputSchema.optional(),
+});
+
+const AudioMixSchema = z.object({
+  clip_volume: z.number().min(0).max(1.5),
+  music_volume: z.number().min(0).max(1.5),
 });
 
 const CreateJobSchema = z.object({
@@ -30,6 +44,7 @@ const CreateJobSchema = z.object({
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
   generate_soundtrack: z.boolean().optional(),
   custom_mood: CustomMoodInputSchema.optional(),
+  audio_mix: AudioMixSchema.optional(),
 });
 
 function normaliseClipIds(clipIds: string[]) {
@@ -121,6 +136,7 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const customMood = parsedBody.data.custom_mood ?? null;
+    const audioMix = parsedBody.data.audio_mix ?? null;
 
     const { data: job, error: jobError } = await supabase
       .from("jobs")
@@ -132,6 +148,7 @@ router.post("/", requireAuth, async (req, res) => {
         output_paths: [],
         error_message: null,
         custom_mood: customMood,
+        audio_mix: audioMix,
       })
       .select("*")
       .single();
@@ -146,6 +163,7 @@ router.post("/", requireAuth, async (req, res) => {
       clipIds,
       generateSoundtrack,
       customMood: customMood ?? undefined,
+      audioMix: audioMix ?? undefined,
     });
 
     return res.status(201).json({

@@ -29,6 +29,13 @@ interface CustomMoodBuildResponse {
     halation: number;
     person_protection: number;
   };
+  pacing: {
+    speed: number;
+    transition: string;
+    transition_duration: number;
+    audio_highpass: number;
+    audio_lowpass: number;
+  };
   cube: string;
 }
 
@@ -111,6 +118,7 @@ router.post("/", requireAuth, async (req, res) => {
       title: buildResult.title,
       description: buildResult.description,
       runtime: buildResult.runtime,
+      pacing: buildResult.pacing,
     });
   } catch (err: any) {
     console.error("Custom mood creation error:", err);

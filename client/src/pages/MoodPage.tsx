@@ -23,13 +23,25 @@ interface CustomMoodRuntime {
   person_protection: number;
 }
 
+interface CustomMoodPacing {
+  speed: number;
+  transition: string;
+  transition_duration: number;
+  audio_highpass: number;
+  audio_lowpass: number;
+}
+
 interface CustomMoodResponse {
   lut_path: string;
   name: string;
   title: string;
   description: string;
   runtime: CustomMoodRuntime;
+  pacing?: CustomMoodPacing;
 }
+
+const DEFAULT_CLIP_VOLUME = 0.9;
+const DEFAULT_MUSIC_VOLUME = 0.22;
 
 export default function MoodPage() {
   const navigate = useNavigate();
@@ -42,6 +54,8 @@ export default function MoodPage() {
   const [customMood, setCustomMood] = useState<CustomMoodResponse | null>(null);
   const [customError, setCustomError] = useState<string | null>(null);
   const [customLoading, setCustomLoading] = useState(false);
+  const [clipVolume, setClipVolume] = useState(DEFAULT_CLIP_VOLUME);
+  const [musicVolume, setMusicVolume] = useState(DEFAULT_MUSIC_VOLUME);
 
   const filteredMoods = moods.filter((m) =>
     m.label.toLowerCase().includes(query.toLowerCase())
@@ -88,6 +102,10 @@ export default function MoodPage() {
     setError(null);
 
     try {
+      const audioMixChanged =
+        Math.abs(clipVolume - DEFAULT_CLIP_VOLUME) > 0.001 ||
+        Math.abs(musicVolume - DEFAULT_MUSIC_VOLUME) > 0.001;
+
       const { data } = await api.post<{ job_id: string }>("/jobs", {
         mood: selectedMood,
         clip_ids: clips.map((c) => c.id),
@@ -99,7 +117,11 @@ export default function MoodPage() {
               title: customMood.title,
               description: customMood.description,
               runtime: customMood.runtime,
+              pacing: customMood.pacing,
             }
+          : undefined,
+        audio_mix: audioMixChanged
+          ? { clip_volume: clipVolume, music_volume: musicVolume }
           : undefined,
       });
       navigate(`/processing/${data.job_id}`);
@@ -191,6 +213,52 @@ export default function MoodPage() {
             </button>
           </div>
         ) : null}
+      </section>
+
+      <section className="mood-mixer-panel">
+        <div className="mood-mixer-header">
+          <h2 className="mood-mixer-title">Audio mix</h2>
+          <button
+            type="button"
+            className="mood-mixer-reset"
+            onClick={() => {
+              setClipVolume(DEFAULT_CLIP_VOLUME);
+              setMusicVolume(DEFAULT_MUSIC_VOLUME);
+            }}
+            disabled={
+              Math.abs(clipVolume - DEFAULT_CLIP_VOLUME) < 0.001 &&
+              Math.abs(musicVolume - DEFAULT_MUSIC_VOLUME) < 0.001
+            }
+          >
+            Reset
+          </button>
+        </div>
+        <label className="mood-mixer-row">
+          <span className="mood-mixer-label">Clip volume</span>
+          <input
+            type="range"
+            min={0}
+            max={1.5}
+            step={0.05}
+            value={clipVolume}
+            onChange={(event) => setClipVolume(Number(event.target.value))}
+            className="mood-mixer-slider"
+          />
+          <span className="mood-mixer-value">{Math.round(clipVolume * 100)}%</span>
+        </label>
+        <label className="mood-mixer-row">
+          <span className="mood-mixer-label">Music volume</span>
+          <input
+            type="range"
+            min={0}
+            max={1.5}
+            step={0.02}
+            value={musicVolume}
+            onChange={(event) => setMusicVolume(Number(event.target.value))}
+            className="mood-mixer-slider"
+          />
+          <span className="mood-mixer-value">{Math.round(musicVolume * 100)}%</span>
+        </label>
       </section>
 
       <label className="mood-soundtrack-toggle">

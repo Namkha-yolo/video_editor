@@ -21,6 +21,13 @@ Post-LUT runtime:
 - halation: 0-0.5. Highlight bloom. Cinematic = 0.45, Dreamy = 0.3, others typically 0.
 - person_protection: 0-0.8. Mask-protect subjects from heavy looks. Hype = 0.85, Chill = 0.30, Cinematic = 0.55.
 
+Pacing (applied during multi-clip assembly):
+- speed: 0.85-1.15. Video + audio time-stretch. Hype/Energetic ≥ 1.10, Chill/Dreamy ≤ 0.95, Cinematic ≈ 1.00.
+- transition: one of fade, fadeblack, fadewhite, slideleft, slideright, slideup, slidedown, wipeleft, wiperight, wipeup, wipedown, circleopen, circleclose, dissolve, smoothleft, smoothright, smoothup, smoothdown, pixelize, zoomin. Pick something that matches the energy — slow looks use long fades, punchy looks use fast slides or fadewhite.
+- transition_duration: 0.2-1.5 seconds. Hype/Energetic = 0.2-0.4, Dreamy/Chill = 1.0-1.5, Cinematic = 0.7-0.9.
+- audio_highpass: 0-200 Hz (0 = off). Cuts low rumble. Use 80-120 on punchy moods to tighten kicks.
+- audio_lowpass: 0-15000 Hz (0 = off). Cuts treble for warmth. Use 8000-10000 on mellow moods.
+
 Choose values that are clearly distinct from neutral. Call create_lut_recipe exactly once.`;
 
 const RECIPE_TOOL: Anthropic.Tool = {
@@ -46,6 +53,11 @@ const RECIPE_TOOL: Anthropic.Tool = {
       grain: { type: "integer" },
       halation: { type: "number" },
       person_protection: { type: "number" },
+      speed: { type: "number" },
+      transition: { type: "string" },
+      transition_duration: { type: "number" },
+      audio_highpass: { type: "integer" },
+      audio_lowpass: { type: "integer" },
     },
     required: [
       "name",
@@ -64,6 +76,11 @@ const RECIPE_TOOL: Anthropic.Tool = {
       "grain",
       "halation",
       "person_protection",
+      "speed",
+      "transition",
+      "transition_duration",
+      "audio_highpass",
+      "audio_lowpass",
     ],
   },
   strict: true,
@@ -86,6 +103,11 @@ export interface MoodRecipe {
   grain: number;
   halation: number;
   person_protection: number;
+  speed: number;
+  transition: string;
+  transition_duration: number;
+  audio_highpass: number;
+  audio_lowpass: number;
 }
 
 export class MoodGenerationError extends Error {
