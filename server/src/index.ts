@@ -10,6 +10,7 @@ import jobRoutes from "./routes/jobs.js";
 import moodRoutes from "./routes/moods.js";
 import clipRoutes from "./routes/clips.js";
 import customMoodRoutes from "./routes/customMoods.js";
+import shareRoutes from "./routes/shares.js";
 import { setJobEventEmitter } from "./services/jobEvents.js";
 import { shutdownJobQueue } from "./services/jobQueue.js";
 import { getRateLimiterConfig } from "./services/rateLimiters.js";
@@ -56,6 +57,7 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/moods", moodRoutes);
 app.use("/api/clips", clipRoutes);
 app.use("/api/custom-moods", customMoodRoutes);
+app.use("/api/shares", shareRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -75,6 +77,7 @@ app.get("/", (_req, res) => {
       upload: "/api/upload",
       clips: "/api/clips",
       jobs: "/api/jobs",
+      shares: "/api/shares",
     },
     documentation: "See README.md for full API documentation",
   });
