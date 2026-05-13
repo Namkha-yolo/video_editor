@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useProjectStore } from "@/store/projectStore";
 import api from "@/lib/api";
 import type { Clip } from "@clipvibe/shared";
+import { toast } from "@/store/toastStore";
 import "./UploadPage.css";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -18,6 +19,7 @@ interface UploadItem {
   progress: number;
   error: string | null;
   thumbnailUrl: string | null;
+  duration: number;
   clipId?: string;
 }
 interface PreviewData {
@@ -40,25 +42,16 @@ const isAcceptedVideoFile = (file: File) => {
 
 const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
   const previewUrl = URL.createObjectURL(file);
-  const video = document.createElement("video");
-  video.preload = "auto";
-  video.muted = true;
-  video.src = previewUrl;
 
   try {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.src = previewUrl;
+
     await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
+      video.onloadeddata = () => resolve();
       video.onerror = () => reject(new Error("Unable to load video"));
     });
-
-    if (Number.isFinite(video.duration) && video.duration > 0) {
-      const seekTarget = Math.min(video.duration * 0.1, 0.5);
-      await new Promise<void>((resolve, reject) => {
-        video.onseeked = () => resolve();
-        video.onerror = () => reject(new Error("Failed to seek video"));
-        video.currentTime = seekTarget;
-      });
-    }
 
     let thumbnailUrl: string | null = null;
     try {
@@ -68,7 +61,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
       const context = canvas.getContext("2d");
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        thumbnailUrl = canvas.toDataURL("image/jpeg", 0.8);
+        thumbnailUrl = canvas.toDataURL("image/jpeg", 1.0);
       }
     } catch {
       thumbnailUrl = null;
@@ -76,7 +69,7 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
 
     return {
       thumbnailUrl,
-      duration: Number.isFinite(video.duration) ? video.duration : 0,
+      duration: video.duration,
       width: video.videoWidth,
       height: video.videoHeight,
     };
@@ -87,8 +80,6 @@ const getVideoPreviewData = async (file: File): Promise<PreviewData> => {
       width: 0,
       height: 0,
     };
-  } finally {
-    URL.revokeObjectURL(previewUrl);
   }
 };
 
@@ -124,35 +115,30 @@ export default function UploadPage() {
         progress: 0,
         error: null,
         thumbnailUrl: null,
+        duration: 0,
       },
       ...prev,
     ]);
 
     // Validate user + file before talking to backend.
     if (!user) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Login is required.",
-      }));
+      const msg = "Login is required.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Each file must be 50MB or less.",
-      }));
+      const msg = "Each file must be 50MB or less.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
     if (!isAcceptedVideoFile(file)) {
-      updateUploadItem(localId, (item) => ({
-        ...item,
-        status: "error",
-        error: "Only mp4, mov, webm and real video are allowed.",
-      }));
+      const msg = "Only mp4, mov, webm are allowed.";
+      updateUploadItem(localId, (item) => ({ ...item, status: "error", error: msg }));
+      toast.error(`${file.name}: ${msg}`);
       return;
     }
 
@@ -168,6 +154,7 @@ export default function UploadPage() {
       updateUploadItem(localId, (item) => ({
         ...item,
         thumbnailUrl: preview.thumbnailUrl,
+        duration: preview.duration,
         progress: 20,
       }));
 
@@ -197,6 +184,9 @@ export default function UploadPage() {
         throw new Error("Upload completed without clip data");
       }
 
+      // Persist uploaded clip in global store for Mood page job creation.
+      addClip(clip);
+
       await sleep(100);
       updateUploadItem(localId, (item) => ({
         ...item,
@@ -211,8 +201,7 @@ export default function UploadPage() {
         error: null,
         clipId: clip.id,
       }));
-      // Persist uploaded clip in global store for Mood page job creation.
-      addClip(clip);
+      toast.success(`${file.name} uploaded successfully.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
 
@@ -222,6 +211,7 @@ export default function UploadPage() {
         progress: 0,
         error: message,
       }));
+      toast.error(`${file.name}: ${message}`);
     }
   };
 
@@ -230,6 +220,13 @@ export default function UploadPage() {
     if (item.clipId) removeClip(item.clipId);
   };
 
+  const handleRetry = (item: UploadItem) => {
+    setUploads((prev) => prev.filter((u) => u.localId !== item.localId));
+    void uploadSingleFile(item.file);
+  };
+
+  const successCount = uploads.filter((u) => u.status === "success").length;
+
   // the function after drag and drop
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -237,7 +234,8 @@ export default function UploadPage() {
     });
   };
 
-  const hasSuccessfulUpload = uploads.some((item) => item.status === "success");
+  const hasSuccessfulUpload =
+    uploads.length > 0 && uploads.every((item) => item.status === "success");
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -281,7 +279,14 @@ export default function UploadPage() {
 
       <div className="upload-page__list-panel">
         <div className="upload-page__list-header">
-          <h2 className="upload-page__list-title">Uploaded Clips</h2>
+          <h2 className="upload-page__list-title">
+            Uploaded Clips
+            {uploads.length > 0 && (
+              <span className="upload-page__count-badge">
+                {successCount} / {uploads.length}
+              </span>
+            )}
+          </h2>
         </div>
         {uploads.length === 0 ? (
           <p className="upload-page__list-empty">No clips uploaded yet.</p>
@@ -304,7 +309,10 @@ export default function UploadPage() {
                           {item.file.name}
                         </p>
                         <p className="upload-page__item-size">
-                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB •{" "}
+                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB
+                          {item.duration > 0 &&
+                            ` • ${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, "0")}`}
+                          {" • "}
                           {item.status}
                         </p>
                       </div>
@@ -333,6 +341,18 @@ export default function UploadPage() {
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
+                    {item.status === "error" && (
+                      <div className="upload-page__item-error-row">
+                        <p className="upload-page__item-error">{item.error}</p>
+                        <button
+                          className="upload-page__retry-button"
+                          type="button"
+                          onClick={() => handleRetry(item)}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
@@ -343,7 +363,7 @@ export default function UploadPage() {
 
       <div className="upload-page__footer">
         <p className="upload-page__footer-text">
-          Upload at least one clip to continue
+          Continue after every uploaded clip finishes successfully
         </p>
         <button
           className="upload-page__next-button"

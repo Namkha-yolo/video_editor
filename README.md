@@ -1,15 +1,32 @@
 # ClipVibe
 
-Mood-driven video color grading. Upload videos, pick a mood, and ClipVibe applies a curated 3D LUT with per-clip exposure correction so all clips share the same cinematic feel — regardless of how different they originally looked.
+## Quick Overview
+
+ClipVibe is a multi-clip video grading app. Users upload clips, choose a mood, and the app analyzes each video before generating clip-specific grading instructions with Claude and applying them with FFmpeg.
+
+### Why it is useful
+
+- It grades multiple clips toward one shared mood instead of applying one flat preset
+- It keeps the workflow simple: upload, choose a mood, wait for processing, compare, download
+- It supports both built-in moods and custom mood presets
+
+### Dashboard highlights
+
+- Press `/` on the dashboard to focus search instantly
+- Double-click a job preview to jump straight to processing or export
+- Use `Copy Job ID` from a job card when you need to share or debug a specific run
+- Re-run a past mood directly from job history
+
+AI-powered mood-driven video color grading. Upload videos, pick a mood, and ClipVibe uses Claude (LLM) to intelligently color grade each clip so they all share the same cinematic feel — regardless of how different they originally looked.
 
 ## How It Works
 
 ```
-Upload clips → Pick a mood → Per-clip analysis → LUT + exposure
-correction via FFmpeg → Download
+Upload clips → Pick a mood → AI analyzes each clip → Claude generates
+per-clip grading instructions → FFmpeg applies the grades → Download
 ```
 
-Grading isn't a flat filter: each clip is analyzed (brightness, contrast, dominant colors) and gets a small exposure adjustment before the mood LUT, so a dark indoor clip and a bright outdoor clip both converge to the same mood.
+The key differentiator: Claude doesn't apply a flat filter. It receives each clip's visual properties (brightness, contrast, dominant colors) and adapts the grading so a dark indoor clip and a bright outdoor clip both converge to the same mood through different adjustments.
 
 ## Architecture
 
@@ -20,21 +37,22 @@ Grading isn't a flat filter: each clip is analyzed (brightness, contrast, domina
 │  :5173      │  WS   │  :3001       │       │  :8000         │
 └─────────────┘       └─────┬──────--┘       └────────────────┘
                             │
-                 ┌──────────┴─────────-┐
-                 │                     │
-           ┌─────┴──┐             ┌────┴───┐
-           │ Redis  │             │Supabase│
-           │ :6379  │             │ (cloud)│
-           └────────┘             └────────┘
+                 ┌──────────┼─────────-─┐
+                 │          │           │
+           ┌─────┴──┐  ┌────┴───┐  ┌────┴────┐
+           │ Redis  │  │Supabase│  │ Claude  │
+           │ :6379  │  │ (cloud)│  │  (API)  │
+           └────────┘  └────────┘  └─────────┘
 ```
 
 | Service | Role |
 |---------|------|
 | **Client** | React frontend — upload UI, mood picker, progress view, export page |
-| **Server** | Express API — auth, file handling, job orchestration |
-| **AI Pipeline** | FastAPI — video analysis (OpenCV) and color grading (FFmpeg + 3D LUTs) |
+| **Server** | Express API — auth, file handling, job orchestration, Claude integration |
+| **AI Pipeline** | FastAPI — video analysis (OpenCV) and color grading execution (FFmpeg) |
 | **Redis** | Job queue storage for BullMQ |
 | **Supabase** | Auth (Google/GitHub OAuth), PostgreSQL database, file storage |
+| **Claude** | LLM that translates mood + clip analysis into per-clip FFmpeg filter params |
 
 ## Tech Stack
 
@@ -58,6 +76,7 @@ Grading isn't a flat filter: each clip is analyzed (brightness, contrast, domina
 |------|---------|
 | Express | HTTP API framework |
 | Supabase JS (service role) | Server-side DB queries and storage operations |
+| Anthropic SDK | Claude API calls for mood-to-grading translation |
 | BullMQ | Redis-backed async job queue |
 | ioredis | Redis client |
 | Socket.io | WebSocket server for real-time progress |
@@ -90,7 +109,7 @@ clipvibe/
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── LoginPage.tsx        # Google/GitHub OAuth
-│   │   │   ├── DashboardPage.tsx    # Job history + re-download
+│   │   │   ├── DashboardPage.tsx    # Job history, search, rerun, and quick actions
 │   │   │   ├── UploadPage.tsx       # Drag-drop video upload
 │   │   │   ├── MoodPage.tsx         # 6-mood selection grid
 │   │   │   ├── ProcessingPage.tsx   # Real-time job progress
@@ -120,7 +139,7 @@ clipvibe/
 │   │   │   ├── moods.ts            # GET /api/moods
 │   │   │   └── jobs.ts             # CRUD /api/jobs + download
 │   │   ├── services/
-│   │   │   ├── moodEngine.ts       # Mood presets + per-clip exposure logic
+│   │   │   ├── moodEngine.ts       # Claude API → FFmpeg filter params
 │   │   │   ├── videoProcessor.ts   # Clip analysis + grading orchestration
 │   │   │   └── jobQueue.ts         # BullMQ worker + WebSocket events
 │   │   ├── middleware/auth.ts       # Supabase JWT verification
@@ -132,13 +151,10 @@ clipvibe/
 │   └── package.json
 │
 ├── ai-pipeline/                     # AI/ML Service (FastAPI)
-│   ├── api.py                       # /probe, /analyze, /grade
+│   ├── api.py                       # POST /analyze + POST /grade
 │   ├── services/
 │   │   ├── analyzer.py             # OpenCV visual analysis
-│   │   ├── grader.py               # FFmpeg + LUT grading
-│   │   └── mood_grades.py          # Per-mood vignette/grain config
-│   ├── luts/                       # Generated 3D LUTs (.cube files)
-│   ├── scripts/build_luts.py       # Procedural LUT generator
+│   │   └── grader.py               # FFmpeg color grading execution
 │   ├── utils/ffmpeg.py             # FFprobe/FFmpeg wrappers
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -160,6 +176,27 @@ clipvibe/
 
 ## Getting Started
 
+### Recommended local setup
+
+If you want the easiest way to run the full project locally, use Docker Compose:
+
+```bash
+git clone <repo-url>
+cd clipvibe
+pnpm install
+docker compose up --build
+```
+
+Open `http://localhost:5173`.
+
+### Important Docker note
+
+Docker builds from your local workspace, not directly from GitHub. If you pull new commits or switch branches, rebuild so the running containers match your current code:
+
+```bash
+docker compose up --build -d
+```
+
 ### Prerequisites
 
 | Requirement | Version | Install |
@@ -170,8 +207,9 @@ clipvibe/
 | FFmpeg | Latest | `brew install ffmpeg` (macOS) / `sudo apt install ffmpeg` (Linux) |
 | Python | >= 3.11 | [python.org](https://www.python.org/downloads/) |
 
-You also need an account on:
+You also need accounts on:
 - **[Supabase](https://supabase.com)** — for auth, database, and file storage (free tier works)
+- **[Anthropic](https://console.anthropic.com/)** — for the Claude API key
 
 ### Step 1 — Clone and install dependencies
 
@@ -185,7 +223,7 @@ pnpm install
 
 ### Step 2 — Get your API keys
 
-You need 3 keys. Here's where to find each one:
+You need 4 keys. Here's where to find each one:
 
 #### Supabase keys (3 keys)
 
@@ -200,6 +238,12 @@ You need 3 keys. Here's where to find each one:
 | **Service role key** | Settings → API → Project API keys → `service_role` `secret` | `eyJhbGciOiJIUzI1NiIsInR5c...` (long JWT) |
 
 > **Important:** The service role key has full admin access. Never commit it to git or expose it in frontend code.
+
+#### Anthropic API key (1 key)
+
+1. Go to [console.anthropic.com](https://console.anthropic.com/)
+2. Navigate to **API Keys** → **Create Key**
+3. Copy the key — it starts with `sk-ant-...`
 
 #### Supabase OAuth setup (for Google/GitHub login)
 
@@ -221,6 +265,9 @@ Open `.env` and fill in your keys:
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...your-service-role-key
+
+# Anthropic Claude API
+ANTHROPIC_API_KEY=sk-ant-your-api-key-here
 
 # Server (defaults — usually no changes needed)
 PORT=3001
@@ -366,7 +413,7 @@ pnpm dev          # starts Vite at localhost:5173
 | File | Status | What to implement |
 |------|--------|-------------------|
 | `src/pages/LoginPage.tsx` | Skeleton | Add Google + GitHub sign-in buttons using `supabase.auth.signInWithOAuth({ provider: "google" })`. Handle auth redirect. Redirect to `/dashboard` on success. |
-| `src/pages/DashboardPage.tsx` | Skeleton | Fetch `GET /api/jobs` using the api client (`import api from "@/lib/api"`). Display job cards showing mood, date, status, number of clips. Add "Re-download" button (links to export page) and "Re-run" button (links to mood page with same clips). |
+| `src/pages/DashboardPage.tsx` | Implemented | Displays grouped job history, search and status filters, quick re-download and rerun actions, and fast dashboard shortcuts for opening or locating jobs. |
 | `src/pages/UploadPage.tsx` | Skeleton | Build drag-and-drop zone using `react-dropzone`. Accept mp4/mov/webm, max 500MB per file. Upload files to Supabase Storage using `supabase.storage.from("clips").upload(...)`. Show per-file progress bars. Show video thumbnail previews. Store clips in `projectStore`. "Next" button navigates to `/mood`. |
 | `src/pages/MoodPage.tsx` | Skeleton | Build a 6-card grid (one per mood). Each card shows mood name, hex color swatch from `tailwind.config.js` mood colors, and a short description. Clicking a card selects it (highlight with border/glow). "Start Grading" button calls `api.post("/api/jobs", { mood, clip_ids })`, gets back a job ID, navigates to `/processing/{jobId}`. |
 | `src/pages/ProcessingPage.tsx` | Skeleton | Read `jobId` from URL params. Connect to WebSocket using `socket.io-client`. Emit `subscribe` event with the job ID. Listen for `progress` events. Display a multi-step progress indicator: Queued → Analyzing → Grading → Complete. Show per-clip status if available. When status is "complete", navigate to `/export/{jobId}`. |
@@ -390,7 +437,7 @@ pnpm dev          # starts Vite at localhost:5173
 
 ### Member 2 — Backend (`server/`)
 
-**Owns:** All API logic, mood/grading service, job orchestration.
+**Owns:** All API logic, Claude integration, job orchestration.
 
 **Setup:**
 ```bash
@@ -407,8 +454,8 @@ pnpm dev          # starts Express at localhost:3001 (needs Redis running)
 | `src/routes/clips.ts` | Skeleton | **GET /**: Query `supabase.from("clips").select("*").eq("user_id", user.id)`. Return clips array. **DELETE /:id**: Verify clip belongs to user. Delete from Supabase Storage: `supabase.storage.from("clips").remove([path])`. Delete from DB: `supabase.from("clips").delete().eq("id", id)`. |
 | `src/routes/moods.ts` | Skeleton | Import mood presets from `moodEngine.ts`. Return them as JSON. No auth needed — this is public info. |
 | `src/routes/jobs.ts` | Skeleton | **POST /**: Validate body with Zod (`{ mood: MoodEnum, clip_ids: string[] }`). Verify all clip_ids belong to the user. Insert job into DB with status "queued". Add job to BullMQ queue: `queue.add("grade", { jobId, mood, clip_ids })`. Return `{ job_id }`. **GET /**: Query user's jobs from DB, ordered by date descending. **GET /:id**: Return single job with output URLs (generate signed URLs from Supabase Storage). **GET /:id/download**: Generate signed download URLs for all output files. Optionally zip them. |
-| `src/services/moodEngine.ts` | Empty | Define the 6 mood presets as objects matching the `MoodPreset` type. Implement `buildExposureAdjustment(mood, clipAnalysis)` — takes a clip's brightness/contrast stats and returns small `{ brightness, contrast, saturation }` deltas that nudge it toward neutral so the mood LUT lands consistently. Saturation is owned by the LUT, not duplicated here. |
-| `src/services/videoProcessor.ts` | Empty | Orchestrator function that takes a job and processes it end-to-end: (1) Sign URLs for each clip in Supabase Storage. (2) Call AI pipeline `POST /analyze` per clip — pipeline streams from the signed URL, returns ClipAnalysis. (3) Compute per-clip `ExposureAdjustment` from each analysis. (4) Call AI pipeline `POST /grade` per clip with `{ signed_url, mood, brightness, contrast, saturation }` — gets back graded file. (5) Upload each graded file to the Supabase outputs bucket. (6) Update job record in DB with output paths and status "complete". |
+| `src/services/moodEngine.ts` | Empty | Define the 6 mood presets as objects matching the `MoodPreset` type. Build the Claude prompt function: takes `{ mood: string, clips: ClipAnalysis[] }`, returns a structured prompt asking Claude for per-clip FFmpeg filter parameters. Call `anthropic.messages.create(...)` with the prompt. Parse Claude's response into structured filter params (JSON). Return an array of `{ clip_id, filters: string }` where filters is the FFmpeg `-vf` filter chain string. |
+| `src/services/videoProcessor.ts` | Empty | Orchestrator function that takes a job and processes it end-to-end: (1) Download each clip from Supabase Storage to a temp directory. (2) Call AI pipeline `POST /analyze` for each clip — sends the file, gets back ClipAnalysis. (3) Pass all analyses + mood to `moodEngine` — gets back per-clip FFmpeg filters. (4) Call AI pipeline `POST /grade` for each clip — sends the file + filters, gets back graded file. (5) Upload each graded file to Supabase Storage output bucket. (6) Update job record in DB with output paths and status "complete". (7) Clean up temp files. |
 | `src/services/jobQueue.ts` | Empty | Create BullMQ `Queue` and `Worker`. The worker calls `videoProcessor` for each job. Emit WebSocket events at each step: `io.to("job:{jobId}").emit("progress", { step, clip, total })`. Steps: "analyzing" (with clip index), "grading" (with clip index), "complete". Handle errors: catch failures, update job status to "failed", emit error event. Configure concurrency (e.g., process 2 jobs at a time). |
 | `src/middleware/auth.ts` | Done | No changes needed. Add `requireAuth` to any route that needs protection. Access the user via `(req as any).user`. |
 | `src/config/supabase.ts` | Done | No changes needed. Import `supabase` for all DB and storage operations. |
@@ -416,6 +463,7 @@ pnpm dev          # starts Express at localhost:3001 (needs Redis running)
 | `src/index.ts` | Done | Add WebSocket handlers: when a client emits `subscribe` with a job ID, add the socket to room `job:{jobId}`. When client disconnects, clean up. |
 
 **Key libraries to learn:**
+- `@anthropic-ai/sdk` — [docs](https://docs.anthropic.com/en/api/client-sdks) — for calling Claude
 - `bullmq` — [docs](https://docs.bullmq.io/) — for job queue and workers
 - `@supabase/supabase-js` — [docs](https://supabase.com/docs/reference/javascript) — for DB + storage (server-side)
 - `zod` — [docs](https://zod.dev/) — for request validation
@@ -548,18 +596,10 @@ create table jobs (
   status text not null default 'queued',
   clip_ids uuid[] not null,
   output_paths text[] default '{}',
-  assembled_path text,
-  custom_mood jsonb,
-  audio_mix jsonb,
   error_message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-
--- For an existing database, add the new columns with:
---   alter table jobs add column if not exists assembled_path text;
---   alter table jobs add column if not exists custom_mood jsonb;
---   alter table jobs add column if not exists audio_mix jsonb;
 
 -- Row Level Security (users can only see their own data)
 alter table clips enable row level security;
@@ -613,7 +653,7 @@ Member 3 (AI/ML)
 
 **Week 2 — Core features (parallel)**
 - Namkha Oedzer (3): `grader.py` (FFmpeg color grading)
-- XinBao Chen  (2): `moodEngine.ts` (mood presets + exposure logic) + `jobQueue.ts` (BullMQ worker)
+- XinBao Chen  (2): `moodEngine.ts` (Claude API) + `jobQueue.ts` (BullMQ worker)
 - Suhyeon yoo (1): `UploadPage` + `MoodPage`
 - Jianhua Deng (4): Finalize shared types + test Docker setup end-to-end
 - Khadim Thiam - product research
@@ -639,12 +679,13 @@ Member 3 (AI/ML)
 2. User selects mood → POST /api/jobs
 3. Server enqueues job in BullMQ
 4. Worker pulls job from queue:
-   a. Signs URLs for each clip in Supabase Storage
-   b. Sends each signed URL to AI pipeline /analyze
+   a. Downloads clips from Supabase Storage
+   b. Sends each clip to AI pipeline /analyze
       → OpenCV extracts brightness, colors, contrast
-   c. Server computes per-clip exposure adjustment from those stats
-   d. Sends each clip + mood + exposure to AI pipeline /grade
-      → FFmpeg applies the mood's 3D LUT plus exposure normalisation
+   c. Sends analysis + mood to Claude API
+      → Claude returns per-clip FFmpeg filter params
+   d. Sends each clip + filters to AI pipeline /grade
+      → FFmpeg applies color grading
    e. Uploads graded clips to Supabase Storage
    f. Updates job status in database
 5. WebSocket pushes progress to client at each step
@@ -660,5 +701,5 @@ Member 3 (AI/ML)
 | `SUPABASE_SERVICE_ROLE_KEY` | Server + AI Pipeline | Supabase admin key (never expose to client) |
 | `PORT` | Server | Express port (default 3001) |
 | `REDIS_URL` | Server | Redis connection string |
+| `ANTHROPIC_API_KEY` | Server | Claude API key |
 | `AI_PIPELINE_URL` | Server | FastAPI service URL |
-| `CORS_ALLOWED_ORIGINS` | Server | Comma-separated origins allowed for browser → API calls |

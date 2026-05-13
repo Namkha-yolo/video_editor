@@ -35,19 +35,29 @@ export interface AudioMix {
   music_volume: number;
 }
 
+export interface MoodGrading {
+  temperature: number;
+  saturation: number;
+  contrast: number;
+  brightness: number;
+  vignette: number;
+  grain: number;
+}
+
 export interface MoodPreset {
   name: Mood;
   label: string;
   description: string;
   color: string;
-  grading: {
-    temperature: number;
-    saturation: number;
-    contrast: number;
-    brightness: number;
-    vignette: number;
-    grain: number;
-  };
+  grading: MoodGrading;
+}
+
+export interface CustomMoodPreset {
+  id: string;
+  label: string;
+  description?: string;
+  color?: string;
+  grading: MoodGrading;
 }
 
 export interface MoodOption {

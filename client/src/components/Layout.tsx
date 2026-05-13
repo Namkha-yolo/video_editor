@@ -1,8 +1,10 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useCallback, useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
+import { useProjectStore } from "@/store/projectStore";
+import { ToastContainer } from "./ToastContainer";
 import "./Layout.css";
 
 const NAV_ITEMS = [
@@ -12,11 +14,14 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const avatarLabel = user?.email?.[0]?.toUpperCase() ?? "U";
-
+  const isProjectActive = useProjectStore((s) => s.isProjectActive);
+  const setIsProjectActive = useProjectStore((s) => s.setIsProjectActive);
+  const setClips = useProjectStore((s) => s.setClips);
   const [theme, setTheme] = useState<"dark" | "light">(
-    () => (localStorage.getItem("theme") as "dark" | "light") ?? "dark"
+    () => (localStorage.getItem("theme") as "dark" | "light") ?? "dark",
   );
 
   useEffect(() => {
@@ -27,11 +32,27 @@ export default function Layout() {
     await supabase.auth.signOut();
   };
 
+  const initialProject = () => {
+    setIsProjectActive(false);
+    setClips([]);
+  };
+
+
+  const handleNewProject = useCallback(() => {
+    setIsProjectActive(true);
+    setClips([]);
+    navigate("/upload");
+  }, [navigate, setClips, setIsProjectActive]);
+
   return (
     <div className={`layout${theme === "light" ? " layout--light" : ""}`}>
       <header className="layout__header">
         <div className="layout__header-inner">
-          <Link to="/dashboard" className="layout__brand">
+          <Link
+            to="/dashboard"
+            className="layout__brand"
+            onClick={initialProject}
+          >
             <img
               src="/logo.png"
               className="layout__brand-logo"
@@ -40,6 +61,7 @@ export default function Layout() {
             <span className="layout__brand-text">ClipVibe</span>
           </Link>
           <div className="layout__user">
+            <button type="button" className="layout__New-project" onClick={handleNewProject}>New Project</button>
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -70,24 +92,48 @@ export default function Layout() {
       <div className="layout__body">
         <aside className="layout__sidebar">
           <nav className="layout__nav" aria-label="Main">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                // show which page is selected
-                className={({ isActive }) =>
-                  `layout__nav-link${isActive ? " layout__nav-link--active" : ""}`
+            {NAV_ITEMS.map((item) =>
+              (() => {
+                const isDisabled =
+                  !isProjectActive &&
+                  (item.to === "/upload" || item.to === "/mood");
+
+                if (isDisabled) {
+                  return (
+                    <span
+                      key={item.to}
+                      className="layout__nav-link layout__nav-link--disabled"
+                      aria-disabled="true"
+                    >
+                      {item.label}
+                    </span>
+                  );
                 }
-              >
-                {item.label}
-              </NavLink>
-            ))}
+
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    // show which page is selected
+                    className={({ isActive }) =>
+                      `layout__nav-link${isActive ? " layout__nav-link--active" : ""}`
+                    }
+                    onClick={
+                      item.to === "/dashboard" ? initialProject : undefined
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                );
+              })(),
+            )}
           </nav>
         </aside>
         <main className="layout__main">
           <Outlet />
         </main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

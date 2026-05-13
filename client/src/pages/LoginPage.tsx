@@ -1,11 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { Film, Github, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import "./LoginPage.css";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [isEmailLogin, setIsEmailLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,30 +27,35 @@ export default function LoginPage() {
           error.message === "Email not confirmed"
             ? "Please check your email and confirm your account first."
             : error.message;
+
         setErrorMessage(nextMessage);
+        alert(nextMessage);
         setLoadingProvider(null);
       }
 
       return;
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-    if (error) {
-      setErrorMessage(error.message);
-      setLoadingProvider(null);
+    } else {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) {
+        setErrorMessage(error.message);
+        setLoadingProvider(null);
+      }
     }
   };
 
+  // Sign-in form Submit
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    // prevent collison with previous log
     e.preventDefault();
 
+    // check filled out
     if (!email || !password) {
-      setErrorMessage("Please fill out all fields.");
+      alert("Please fill out all fields.");
       return;
     }
 
@@ -101,7 +104,7 @@ export default function LoginPage() {
           {isEmailLogin ? (
             <form className="email-form" onSubmit={handleSubmit}>
               <p className="login-card-eyebrow">Welcome back</p>
-              <h2 className="login-card-title">Login with Email</h2>
+              <h2 className="login-card-title">Login with Email </h2>
 
               <label>Email</label>
               <input
@@ -120,35 +123,36 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-
-              {errorMessage ? (
-                <p className="login-feedback login-feedback--error" role="alert">
-                  {errorMessage}
-                </p>
-              ) : null}
-
               <div className="login-actions">
-                <button
-                  type="button"
-                  className="login-link-button"
-                  onClick={() => navigate("/signup")}
-                >
-                  Create new account
-                </button>
+                <div className="login-link-row">
+                  <p
+                    className="create-btn"
+                    onClick={() =>
+                      window.open("/signup", "_blank", "width=500,height=700")
+                    }
+                  >
+                    Create new account
+                  </p>
+                  <p
+                    className="create-btn"
+                    onClick={() =>
+                      window.open("/passwordReset", "_blank", "width=500,height=700")
+                    }
+                  >
+                    Forgot password?
+                  </p>
+                </div>
                 <button
                   type="submit"
                   className="login-action-button"
                   disabled={loadingProvider !== null}
                 >
-                  {loadingProvider === "email" ? "Connecting..." : "Log in"}
+                  {loadingProvider === "email" ? "Connecting..." : "Log-in"}
                 </button>
                 <button
                   type="button"
                   className="login-action-button"
-                  onClick={() => {
-                    setErrorMessage(null);
-                    setIsEmailLogin(false);
-                  }}
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
                 >
                   Back to select
                 </button>
@@ -187,21 +191,12 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="login-action-button"
-                  onClick={() => {
-                    setErrorMessage(null);
-                    setIsEmailLogin(true);
-                  }}
+                  onClick={(e) => setIsEmailLogin(!isEmailLogin)}
                   disabled={loadingProvider !== null}
                 >
                   ✉️ Continue with Email
                 </button>
               </div>
-
-              {errorMessage ? (
-                <p className="login-feedback login-feedback--error" role="alert">
-                  {errorMessage}
-                </p>
-              ) : null}
 
               <p className="login-text">
                 Use Google, GitHub, or Email to sign in and continue to your

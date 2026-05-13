@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
+import PasswordResetPage from "@/pages/PasswordResetPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
@@ -63,6 +64,7 @@ export default function App() {
           </PublicOnlyRoute>
         }
       />
+      <Route path="/passwordReset" element={<PasswordResetPage />} />
       <Route
         element={
           <ProtectedRoute>
@@ -74,6 +76,8 @@ export default function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/mood" element={<MoodPage />} />
         <Route path="/processing/:jobId" element={<ProcessingPage />} />
+        {/* For Debugging */}
+        <Route path="/processing" element={<ProcessingPage />} />
         <Route path="/export/:jobId" element={<ExportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

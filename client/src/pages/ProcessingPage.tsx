@@ -1,171 +1,428 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { io, type Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import api from "@/lib/api";
+import { useProjectStore } from "@/store/projectStore";
+import type { Clip, JobStatus } from "@clipvibe/shared";
 import "./ProcessingPage.css";
 
-type Status = "queued" | "analyzing" | "grading" | "assembling" | "complete" | "failed";
+interface JobDetailClip {
+  id: string;
+  file_name: string;
+  duration: number;
+  original_url: string | null;
+  output_url: string | null;
+}
 
-interface ProgressEvent {
+interface JobDetailResponse {
+  id: string;
+  mood: string;
+  status: JobStatus;
+  clip_ids: string[];
+  created_at: string;
+  updated_at: string;
+  error_message?: string | null;
+  clips: JobDetailClip[];
+}
+
+interface JobProgressEvent {
   job_id: string;
-  status: Status;
+  status: JobStatus;
   message?: string;
   clip_id?: string;
   clip_index?: number;
   total_clips?: number;
-  error?: string;
   output_paths?: string[];
-  assembled_path?: string | null;
+  error?: string;
 }
 
-interface JobStateResponse {
+interface DisplayClip {
   id: string;
-  status: Status;
-  error_message: string | null;
-  clip_ids: string[];
+  title: string;
+  progress: number;
+  status: string;
 }
 
-const STATUS_LABEL: Record<Status, string> = {
-  queued: "Queued",
-  analyzing: "Analyzing clips",
-  grading: "Grading clips",
-  assembling: "Assembling final video",
-  complete: "Complete",
-  failed: "Failed",
-};
+const AUTO_REDIRECT_DELAY_MS = 1200;
 
-function computeProgress(event: ProgressEvent): number {
-  const total = Math.max(1, event.total_clips ?? 1);
-  const index = event.clip_index ?? 0;
-  switch (event.status) {
+function dedupeClips(clips: Clip[]) {
+  return Array.from(new Map(clips.map((clip) => [clip.id, clip])).values());
+}
+
+function titleCaseStatus(status: JobStatus) {
+  switch (status) {
     case "queued":
-      return 0;
+      return "Queued";
     case "analyzing":
-      return Math.min(40, Math.round(5 + (index / total) * 35));
+      return "Analyzing";
     case "grading":
-      return Math.min(80, Math.round(40 + (index / total) * 40));
-    case "assembling":
-      return 92;
+      return "Grading";
     case "complete":
-      return 100;
+      return "Complete";
     case "failed":
-      return 0;
+      return "Failed";
+    default:
+      return status;
+  }
+}
+
+function buildFallbackClips(clips: Clip[]): JobDetailClip[] {
+  return dedupeClips(clips).map((clip) => ({
+    id: clip.id,
+    file_name: clip.file_name || "Untitled clip",
+    duration: clip.duration,
+    original_url: null,
+    output_url: null,
+  }));
+}
+
+function getCurrentClipIndex(progressEvent: JobProgressEvent | null) {
+  return Math.max(0, (progressEvent?.clip_index ?? 1) - 1);
+}
+
+function deriveClipState(
+  index: number,
+  status: JobStatus,
+  progressEvent: JobProgressEvent | null,
+) {
+  const currentIndex = getCurrentClipIndex(progressEvent);
+
+  switch (status) {
+    case "queued":
+      return { progress: 0, status: "Queued" };
+    case "analyzing":
+      if (index < currentIndex) return { progress: 50, status: "Analyzed" };
+      if (index === currentIndex) return { progress: 25, status: "Analyzing" };
+      return { progress: 0, status: "Queued" };
+    case "grading":
+      if (index < currentIndex) return { progress: 100, status: "Graded" };
+      if (index === currentIndex) return { progress: 75, status: "Grading" };
+      return { progress: 50, status: "Ready to grade" };
+    case "complete":
+      return { progress: 100, status: "Complete" };
+    case "failed":
+      if (progressEvent?.status === "grading") {
+        if (index < currentIndex) return { progress: 100, status: "Graded" };
+        if (index === currentIndex) return { progress: 75, status: "Failed" };
+        return { progress: 50, status: "Ready to grade" };
+      }
+      if (progressEvent?.status === "analyzing") {
+        if (index < currentIndex) return { progress: 50, status: "Analyzed" };
+        if (index === currentIndex) return { progress: 25, status: "Failed" };
+        return { progress: 0, status: "Queued" };
+      }
+      return { progress: 0, status: "Failed" };
+    default:
+      return { progress: 0, status: "Queued" };
+  }
+}
+
+function buildStatusMessage(
+  status: JobStatus,
+  clipCount: number,
+  progressEvent: JobProgressEvent | null,
+  errorMessage: string | null,
+) {
+  if (errorMessage) return errorMessage;
+  if (progressEvent?.message) return progressEvent.message;
+
+  switch (status) {
+    case "queued":
+      return "Your grading job is queued and waiting to start.";
+    case "analyzing":
+      return `Analyzing ${clipCount} clip${clipCount === 1 ? "" : "s"} before grading.`;
+    case "grading":
+      return `Applying the selected mood to ${clipCount} clip${clipCount === 1 ? "" : "s"}.`;
+    case "complete":
+      return "All clips are graded. Redirecting to export.";
+    case "failed":
+      return "The grading job failed before finishing.";
+    default:
+      return "Preparing your grading job.";
   }
 }
 
 export default function ProcessingPage() {
-  const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const [progress, setProgress] = useState<ProgressEvent | null>(null);
+  const { jobId } = useParams<{ jobId: string }>();
+  const storedClips = useProjectStore((s) => s.clips);
+
+  const [job, setJob] = useState<JobDetailResponse | null>(null);
+  const [progressEvent, setProgressEvent] = useState<JobProgressEvent | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadJob = useCallback(async () => {
+    if (!jobId) {
+      setError("Missing job id.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await api.get<JobDetailResponse>(`/jobs/${jobId}`);
+      setJob(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to load job progress.");
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    void loadJob();
+  }, [loadJob]);
 
   useEffect(() => {
     if (!jobId) return;
-    let cancelled = false;
-    let socket: Socket | null = null;
 
-    async function init() {
-      try {
-        const { data } = await api.get<JobStateResponse>(`/jobs/${jobId}`);
-        if (cancelled) return;
+    const socket = io("/", {
+      path: "/socket.io",
+      transports: ["websocket"],
+    });
 
-        if (data.status === "complete") {
-          navigate(`/export/${jobId}`, { replace: true });
-          return;
-        }
+    socket.on("connect", () => {
+      socket.emit("subscribe", jobId);
+    });
 
-        setProgress({
-          job_id: data.id,
-          status: data.status,
-          total_clips: data.clip_ids.length,
-          error: data.error_message ?? undefined,
-        });
+    socket.on("progress", (event: JobProgressEvent) => {
+      if (event.job_id !== jobId) return;
 
-        socket = io({ path: "/socket.io" });
-        socket.on("connect", () => {
-          socket?.emit("subscribe", jobId);
-        });
-        socket.on("progress", (event: ProgressEvent) => {
-          if (cancelled || event.job_id !== jobId) return;
-          setProgress(event);
-          if (event.status === "complete") {
-            navigate(`/export/${jobId}`, { replace: true });
-          }
-        });
-      } catch (err: any) {
-        if (cancelled) return;
-        setError(err?.response?.data?.error || "Failed to load job.");
+      setProgressEvent(event);
+      setJob((current) =>
+        current
+          ? {
+              ...current,
+              status: event.status,
+              error_message: event.error || current.error_message || null,
+            }
+          : current,
+      );
+
+      if (event.status === "complete" || event.status === "failed") {
+        void loadJob();
       }
-    }
-
-    void init();
+    });
 
     return () => {
-      cancelled = true;
-      if (socket) {
-        socket.emit("unsubscribe", jobId);
-        socket.disconnect();
-      }
+      socket.emit("unsubscribe", jobId);
+      socket.disconnect();
     };
-  }, [jobId, navigate]);
+  }, [jobId, loadJob]);
 
-  const percent = useMemo(() => (progress ? computeProgress(progress) : 0), [progress]);
+  const fallbackClips = useMemo(
+    () => buildFallbackClips(storedClips),
+    [storedClips],
+  );
+  const clips = job?.clips.length ? job.clips : fallbackClips;
+  const jobStatus = job?.status ?? progressEvent?.status ?? "queued";
+  const errorMessage =
+    error || job?.error_message || progressEvent?.error || null;
 
-  if (error) {
+  const clipItems = useMemo<DisplayClip[]>(
+    () =>
+      clips.map((clip, index) => {
+        const derived = deriveClipState(index, jobStatus, progressEvent);
+        return {
+          id: clip.id,
+          title: clip.file_name || `Clip ${index + 1}`,
+          progress: derived.progress,
+          status: derived.status,
+        };
+      }),
+    [clips, jobStatus, progressEvent],
+  );
+
+  const overallProgress =
+    clipItems.length > 0
+      ? Math.round(
+          clipItems.reduce((total, clip) => total + clip.progress, 0) /
+            clipItems.length,
+        )
+      : 0;
+  const completedClips = clipItems.filter(
+    (clip) => clip.progress >= 100,
+  ).length;
+  const statusMessage = buildStatusMessage(
+    jobStatus,
+    clipItems.length,
+    progressEvent,
+    errorMessage,
+  );
+
+  useEffect(() => {
+    if (!jobId || jobStatus !== "complete") return;
+
+    const timeoutId = window.setTimeout(() => {
+      navigate(`/export/${jobId}`, { replace: true });
+    }, AUTO_REDIRECT_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [jobId, jobStatus, navigate]);
+
+  if (!jobId) {
     return (
       <section className="processing-page">
-        <h1 className="processing-title">Couldn't load this job</h1>
-        <p className="processing-error">{error}</p>
-        <button className="processing-btn" onClick={() => navigate("/dashboard")}>
-          Back to Dashboard
-        </button>
-      </section>
-    );
-  }
-
-  if (!progress) {
-    return (
-      <section className="processing-page">
-        <p className="processing-message">Loading job…</p>
-      </section>
-    );
-  }
-
-  if (progress.status === "failed") {
-    return (
-      <section className="processing-page">
-        <h1 className="processing-title">Grading failed</h1>
-        <p className="processing-error">
-          {progress.error || progress.message || "Something went wrong while grading."}
-        </p>
-        <div className="processing-actions">
-          <button className="processing-btn" onClick={() => navigate("/dashboard")}>
-            Back to Dashboard
-          </button>
+        <div className="processing-card">
+          <h1 className="processing-card__title">Missing job</h1>
+          <p className="processing-card__subtitle">
+            Open this page from the mood flow so a grading job can be tracked.
+          </p>
+          <div className="processing-actions">
+            <button
+              type="button"
+              className="processing-action processing-action--primary"
+              onClick={() => navigate("/dashboard")}
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </section>
     );
   }
 
-  const clipLabel =
-    progress.clip_index && progress.total_clips
-      ? `Clip ${progress.clip_index} of ${progress.total_clips}`
-      : progress.total_clips
-        ? `${progress.total_clips} clip${progress.total_clips === 1 ? "" : "s"}`
-        : null;
+  if (loading) {
+    return (
+      <section className="processing-page">
+        <div className="processing-card processing-overview">
+          <p className="processing-overview__eyebrow">Loading</p>
+          <h1 className="processing-overview__value">Preparing job...</h1>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="processing-page">
-      <h1 className="processing-title">Processing your clips</h1>
-      <p className="processing-status">{STATUS_LABEL[progress.status]}</p>
-      {clipLabel ? <p className="processing-clip-label">{clipLabel}</p> : null}
+      <div className="processing-page__grid">
+        <div className="processing-page__column">
+          <div className="processing-card processing-overview">
+            <div className="processing-overview__header">
+              <div>
+                <p className="processing-overview__eyebrow">Overall progress</p>
+                <h2
+                  className={`processing-overview__value${
+                    jobStatus === "failed"
+                      ? " processing-overview__value--failed"
+                      : ""
+                  }`}
+                >
+                  {jobStatus === "failed"
+                    ? titleCaseStatus(jobStatus)
+                    : `${overallProgress}%`}
+                </h2>
+              </div>
+              <div className="processing-overview__meta">
+                <span>
+                  {completedClips} of {clipItems.length} clips complete
+                </span>
+              </div>
+            </div>
 
-      <div className="processing-progress-track" aria-label="Job progress">
-        <div className="processing-progress-fill" style={{ width: `${percent}%` }} />
+            <div className="processing-overview__progress">
+              <div
+                className={`processing-overview__progress-bar processing-overview__progress-bar--${jobStatus}`}
+                style={{ width: `${overallProgress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="processing-card">
+            <div className="processing-card__header">
+              <div>
+                <h2 className="processing-card__title">Clip queue</h2>
+                <p className="processing-card__subtitle">
+                  Live progress updates come from the active grading job.
+                </p>
+              </div>
+            </div>
+
+            {clipItems.length === 0 ? (
+              <p className="processing-card__subtitle">
+                No clips are attached to this job yet.
+              </p>
+            ) : (
+              <div className="processing-clip-list">
+                {clipItems.map((clip) => (
+                  <article key={clip.id} className="processing-clip-card">
+                    <div className="processing-clip-card__header">
+                      <div className="processing-clip-card__meta">
+                        <p className="processing-clip-card__title">
+                          {clip.title}
+                        </p>
+                      </div>
+                      <span className="processing-clip-card__status">
+                        {clip.status}
+                      </span>
+                    </div>
+
+                    <div className="processing-clip-card__progress">
+                      <div
+                        className={`processing-clip-card__progress-bar processing-clip-card__progress-bar--${jobStatus}`}
+                        style={{ width: `${clip.progress}%` }}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="processing-page__column">
+          <div className="processing-card">
+            <div className="processing-card__header">
+              <div>
+                <h2 className="processing-card__title">Job status</h2>
+                <p className="processing-card__subtitle">
+                  Mood: {job?.mood ?? "Unknown"}
+                </p>
+              </div>
+            </div>
+
+            <div className="processing-status-stack">
+              <div
+                className={`processing-status-badge processing-status-badge--${jobStatus}`}
+              >
+                {titleCaseStatus(jobStatus)}
+              </div>
+              <p className="processing-status-message">{statusMessage}</p>
+            </div>
+
+            <div className="processing-actions">
+              {jobStatus === "complete" ? (
+                <button
+                  type="button"
+                  className="processing-action processing-action--primary"
+                  onClick={() => navigate(`/export/${jobId}`)}
+                >
+                  Open Export
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="processing-action processing-action--secondary"
+                  onClick={() => void loadJob()}
+                >
+                  Refresh Status
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="processing-action processing-action--secondary"
+                onClick={() => navigate("/dashboard")}
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <p className="processing-percent">{percent}%</p>
-
-      {progress.message ? <p className="processing-message">{progress.message}</p> : null}
     </section>
   );
 }
