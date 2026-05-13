@@ -37,6 +37,18 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            cat > .env << 'EOF'
+            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+            ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+            PUBLIC_APP_URL=${{ secrets.PUBLIC_APP_URL }}
+            PORT=${{ secrets.PORT }}
+            NODE_ENV=${{ secrets.NODE_ENV }}
+            REDIS_URL=redis://redis:6379
+            AI_PIPELINE_URL=http://ai-pipeline:8000
+            EOF
+
             sudo docker compose up -d --build
             sudo docker compose ps
             sudo docker image prune -f
