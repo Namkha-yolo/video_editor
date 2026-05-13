@@ -50,7 +50,6 @@ export default function ExportPage() {
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [rendering, setRendering] = useState<Resolution | null>(null);
   const [resolution, setResolution] = useState<Resolution>("1080p");
-  const [shareCopied, setShareCopied] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,18 +121,6 @@ export default function ExportPage() {
       setRenderError(err?.response?.data?.error || err?.message || "Render failed.");
     } finally {
       setRendering(null);
-    }
-  }
-
-  async function handleCopyShareLink() {
-    if (!job) return;
-    const url = `${window.location.origin}/p/${job.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 1500);
-    } catch {
-      window.prompt("Copy this share link:", url);
     }
   }
 
@@ -259,15 +246,6 @@ export default function ExportPage() {
               {rendering ? `Rendering ${rendering}…` : "Download Final Video"}
             </button>
           </div>
-        ) : null}
-        {job.assembled_url ? (
-          <button
-            type="button"
-            className="export-btn export-btn--secondary"
-            onClick={handleCopyShareLink}
-          >
-            {shareCopied ? "Share link copied" : "Share"}
-          </button>
         ) : null}
         <button
           type="button"

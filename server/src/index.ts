@@ -9,7 +9,6 @@ import uploadRoutes from "./routes/upload.js";
 import jobRoutes from "./routes/jobs.js";
 import moodRoutes from "./routes/moods.js";
 import clipRoutes from "./routes/clips.js";
-import shareRoutes from "./routes/share.js";
 import customMoodRoutes from "./routes/customMoods.js";
 import { setJobEventEmitter } from "./services/jobEvents.js";
 import { shutdownJobQueue } from "./services/jobQueue.js";
@@ -56,7 +55,6 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/moods", moodRoutes);
 app.use("/api/clips", clipRoutes);
-app.use("/api/share", shareRoutes);
 app.use("/api/custom-moods", customMoodRoutes);
 
 app.get("/api/health", (_req, res) => {

@@ -7,7 +7,6 @@ import UploadPage from "@/pages/UploadPage";
 import MoodPage from "@/pages/MoodPage";
 import ProcessingPage from "@/pages/ProcessingPage";
 import ExportPage from "@/pages/ExportPage";
-import SharePage from "@/pages/SharePage";
 import { useAuthStore } from "./store/authStore";
 import { useEffect } from "react";
 
@@ -75,7 +74,6 @@ export default function App() {
         <Route path="/processing/:jobId" element={<ProcessingPage />} />
         <Route path="/export/:jobId" element={<ExportPage />} />
       </Route>
-      <Route path="/p/:jobId" element={<SharePage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
