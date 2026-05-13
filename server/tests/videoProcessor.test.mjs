@@ -190,6 +190,7 @@ export async function run() {
         assert.equal(assembleRequests[0].body.mood, "cinematic");
         assert.equal(assembleRequests[0].body.signed_urls.length, 2);
         assert.equal(assembleRequests[0].body.auto_order, true);
+        assert.equal(assembleRequests[0].body.with_soundtrack, true);
         assert.equal(assembleRequests[0].body.clip_analyses?.length, 2);
         assert.ok(
           assembleRequests[0].body.clip_analyses.every(

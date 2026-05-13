@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from services.assembler import PACING, assemble  # noqa: E402
+from services.soundtrack import pick_track_for_mood  # noqa: E402
 
 
 def make_test_clip(path: Path, source: str, duration: int = 2) -> None:
@@ -42,13 +43,16 @@ def main() -> int:
         for mood in PACING:
             print(f"assembling {mood}...")
             out_path = tmp_dir / f"out_{mood}.mp4"
+            track = pick_track_for_mood(mood)
+            music = str(track.path) if track is not None else None
             try:
-                assemble(clip_paths, str(out_path), mood)
+                assemble(clip_paths, str(out_path), mood, music_path=music)
                 size = out_path.stat().st_size
                 if size <= 0:
                     failures.append(f"{mood}: empty output")
                 else:
-                    print(f"  ok ({size} bytes)")
+                    suffix = f" + music ({track.path.name})" if track else " (no music)"
+                    print(f"  ok ({size} bytes){suffix}")
             except Exception as exc:
                 failures.append(f"{mood}: {exc}")
                 print(f"  FAIL {exc}")

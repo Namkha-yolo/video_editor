@@ -145,6 +145,9 @@ def assemble(
     target_resolution: tuple[int, int] | None = None,
     target_fps: int = 30,
     timeout: int = 900,
+    music_path: str | None = None,
+    music_volume: float = 0.22,
+    clip_audio_volume: float = 0.9,
 ) -> str:
     if not input_paths:
         raise AssemblyError("no clips to assemble")
@@ -177,10 +180,22 @@ def assemble(
 
     graph, total = build_filter_graph(metas, audio_input_indices, pacing, target_w, target_h, target_fps)
 
+    final_audio_label = "[a]"
+    if music_path:
+        cmd += ["-stream_loop", "-1", "-i", music_path]
+        music_idx = input_idx
+        input_idx += 1
+        graph += (
+            f";[{music_idx}:a]volume={music_volume:.3f}[music_v]"
+            f";[a]volume={clip_audio_volume:.3f}[clip_v]"
+            f";[clip_v][music_v]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[a_out]"
+        )
+        final_audio_label = "[a_out]"
+
     cmd += [
         "-filter_complex", graph,
         "-map", "[v]",
-        "-map", "[a]",
+        "-map", final_audio_label,
         "-c:v", "libx264",
         "-crf", "23",
         "-preset", "veryfast",
@@ -192,8 +207,8 @@ def assemble(
     ]
 
     logger.info(
-        "assembling %d clips mood=%s target=%dx%d@%d total=%.2fs",
-        len(input_paths), mood, target_w, target_h, target_fps, total,
+        "assembling %d clips mood=%s target=%dx%d@%d total=%.2fs music=%s",
+        len(input_paths), mood, target_w, target_h, target_fps, total, bool(music_path),
     )
     logger.debug("ffmpeg cmd: %s", shlex.join(cmd))
 

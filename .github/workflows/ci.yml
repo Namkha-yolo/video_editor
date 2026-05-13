@@ -77,8 +77,10 @@ jobs:
             ai-pipeline/services/scene_detector.py \
             ai-pipeline/services/segmenter.py \
             ai-pipeline/services/sequencer.py \
+            ai-pipeline/services/soundtrack.py \
             ai-pipeline/scripts/build_luts.py \
             ai-pipeline/scripts/download_models.py \
+            ai-pipeline/scripts/generate_placeholder_tracks.py \
             ai-pipeline/scripts/smoke_test_assembly.py \
             ai-pipeline/utils/__init__.py \
             ai-pipeline/utils/ffmpeg.py

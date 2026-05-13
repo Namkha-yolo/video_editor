@@ -6,6 +6,15 @@ Notable changes to ClipVibe. Format based on [Keep a Changelog](https://keepacha
 
 ### Added
 
+- Multi-clip assembly pipeline: `/assemble` endpoint chains graded clips with per-mood pacing (`setpts`/`atempo`), xfade transitions, audio normalization (`loudnorm`) and per-mood EQ; `services/assembler.py`.
+- Mood-aware intelligent clip ordering (`services/sequencer.py`) — arc-up for hype/energetic, arc-down for chill/dreamy, greedy nearest-neighbour for cinematic/nostalgic.
+- Scene detection via PySceneDetect (`services/scene_detector.py`); `/assemble` exposes `trim_to_primary_scene`.
+- Soundtrack library: `services/soundtrack.py` + `music/manifest.json`; per-mood track selection, mixed under clip audio at 0.22 volume via FFmpeg `amix`; `scripts/generate_placeholder_tracks.py` produces synthesised stubs (replace with real tracks before final demo).
+- Server worker orchestrates the new flow: grade per clip → sign → `/assemble` with `auto_order` + `with_soundtrack` + per-clip analyses → upload `{user}/{jobId}/assembled.mp4`; job rows gain `assembled_path` (one-line SQL migration noted in README).
+- Public share endpoint `GET /api/share/:jobId` returning a 7-day signed URL; standalone client route `/p/:jobId` with copy-link + download.
+- On-demand multi-resolution export: `POST /api/jobs/:id/render` transcodes the assembled video to 1080p / 720p / 480p with server-side FFmpeg, caches each at `assembled-{res}.mp4`; ExportPage exposes a resolution selector.
+- Job status ladder: `queued → analyzing → grading → assembling → complete`; progress events carry `assembled_path`.
+- CI: assembly smoke test (`scripts/smoke_test_assembly.py`) renders 3 synthetic clips for every mood with music mixed in.
 - Procedural 3D LUT generator (`ai-pipeline/scripts/build_luts.py`) and six committed mood LUTs at 33³ resolution.
 - `ai-pipeline/services/mood_grades.py` for per-mood vignette/grain config.
 - `ai-pipeline/services/grader.py::ExposureAdjustment` for structured per-clip exposure correction.

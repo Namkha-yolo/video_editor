@@ -16,6 +16,7 @@ from services.grader import ExposureAdjustment, grade_clip, GradingError
 from services.mood_grades import VALID_MOODS
 from services.scene_detector import SceneDetectionError, primary_scene
 from services.sequencer import ClipFeatures, order_clips
+from services.soundtrack import pick_track_for_mood
 from utils.ffmpeg import probe
 
 logging.basicConfig(level=logging.INFO)
@@ -82,6 +83,7 @@ class AssembleRequest(BaseModel):
     target_fps: int = 30
     auto_order: bool = False
     clip_analyses: list[ClipAnalysisInput] | None = None
+    with_soundtrack: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +304,20 @@ async def assemble_endpoint(body: AssembleRequest):
         output_path = out_tmp.name
         out_tmp.close()
 
-        assemble(input_paths, output_path, body.mood, target_fps=body.target_fps)
+        music_path: str | None = None
+        if body.with_soundtrack:
+            track = pick_track_for_mood(body.mood)
+            if track is not None:
+                music_path = str(track.path)
+                logger.info("soundtrack: mood=%s track=%s kind=%s bpm=%.0f", body.mood, track.path.name, track.kind, track.bpm)
+
+        assemble(
+            input_paths,
+            output_path,
+            body.mood,
+            target_fps=body.target_fps,
+            music_path=music_path,
+        )
 
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(

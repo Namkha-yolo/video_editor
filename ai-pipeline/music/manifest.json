@@ -1,0 +1,56 @@
+{
+  "nostalgic": [
+    {
+      "file": "nostalgic.m4a",
+      "duration": 30.0,
+      "bpm": 78.0,
+      "energy": 0.25,
+      "kind": "placeholder"
+    }
+  ],
+  "cinematic": [
+    {
+      "file": "cinematic.m4a",
+      "duration": 30.0,
+      "bpm": 70.0,
+      "energy": 0.3,
+      "kind": "placeholder"
+    }
+  ],
+  "hype": [
+    {
+      "file": "hype.m4a",
+      "duration": 30.0,
+      "bpm": 138.0,
+      "energy": 0.85,
+      "kind": "placeholder"
+    }
+  ],
+  "chill": [
+    {
+      "file": "chill.m4a",
+      "duration": 30.0,
+      "bpm": 72.0,
+      "energy": 0.28,
+      "kind": "placeholder"
+    }
+  ],
+  "dreamy": [
+    {
+      "file": "dreamy.m4a",
+      "duration": 30.0,
+      "bpm": 68.0,
+      "energy": 0.22,
+      "kind": "placeholder"
+    }
+  ],
+  "energetic": [
+    {
+      "file": "energetic.m4a",
+      "duration": 30.0,
+      "bpm": 126.0,
+      "energy": 0.75,
+      "kind": "placeholder"
+    }
+  ]
+}

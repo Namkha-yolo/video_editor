@@ -220,6 +220,7 @@ async function runAssembly(
         signed_urls: gradedUrls,
         mood,
         auto_order: true,
+        with_soundtrack: true,
         clip_analyses: analyses.map((a) => ({
           brightness: a.brightness,
           contrast: a.contrast,
