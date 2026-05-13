@@ -112,12 +112,21 @@ const soundtrackGenLimiter = new FixedWindowRateLimiter({
   windowMs: readPositiveInt("SOUNDTRACK_GEN_RATE_LIMIT_WINDOW_MS", 24 * 60 * 60 * 1000),
 });
 
+const customMoodLimiter = new FixedWindowRateLimiter({
+  limit: readPositiveInt("CUSTOM_MOOD_RATE_LIMIT_MAX", 10),
+  windowMs: readPositiveInt("CUSTOM_MOOD_RATE_LIMIT_WINDOW_MS", 24 * 60 * 60 * 1000),
+});
+
 export function consumeJobCreationRateLimit(requesterId: string, now = Date.now()) {
   return jobCreationLimiter.consume(requesterId || "anonymous", now);
 }
 
 export function consumeSoundtrackGenRateLimit(requesterId: string, now = Date.now()) {
   return soundtrackGenLimiter.consume(requesterId || "anonymous", now);
+}
+
+export function consumeCustomMoodRateLimit(requesterId: string, now = Date.now()) {
+  return customMoodLimiter.consume(requesterId || "anonymous", now);
 }
 
 export function getRateLimiterConfig() {
@@ -128,10 +137,14 @@ export function getRateLimiterConfig() {
     soundtrack: {
       generate: soundtrackGenLimiter.getConfig(),
     },
+    custom_mood: {
+      generate: customMoodLimiter.getConfig(),
+    },
   };
 }
 
 export function resetRateLimitersForTests() {
   jobCreationLimiter.reset();
   soundtrackGenLimiter.reset();
+  customMoodLimiter.reset();
 }

@@ -10,6 +10,7 @@
     "test": "npm run build && node tests/run.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.2",
     "@supabase/supabase-js": "^2.45.0",
     "axios": "^1.7.3",
     "bullmq": "^5.10.3",

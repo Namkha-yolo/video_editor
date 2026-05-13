@@ -549,13 +549,15 @@ create table jobs (
   clip_ids uuid[] not null,
   output_paths text[] default '{}',
   assembled_path text,
+  custom_mood jsonb,
   error_message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- For an existing database, add the assembled_path column with:
+-- For an existing database, add the new columns with:
 --   alter table jobs add column if not exists assembled_path text;
+--   alter table jobs add column if not exists custom_mood jsonb;
 
 -- Row Level Security (users can only see their own data)
 alter table clips enable row level security;

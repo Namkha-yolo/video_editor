@@ -16,6 +16,21 @@ const MOOD_TOOLTIPS: Record<string, string> = {
   energetic: "Warm amber tones with vivid pops of color. Great for events, parties, and workouts.",
 };
 
+interface CustomMoodRuntime {
+  vignette: number;
+  grain: number;
+  halation: number;
+  person_protection: number;
+}
+
+interface CustomMoodResponse {
+  lut_path: string;
+  name: string;
+  title: string;
+  description: string;
+  runtime: CustomMoodRuntime;
+}
+
 export default function MoodPage() {
   const navigate = useNavigate();
   const { clips, selectedMood, setSelectedMood } = useProjectStore();
@@ -23,10 +38,44 @@ export default function MoodPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [generateSoundtrack, setGenerateSoundtrack] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [customMood, setCustomMood] = useState<CustomMoodResponse | null>(null);
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [customLoading, setCustomLoading] = useState(false);
 
   const filteredMoods = moods.filter((m) =>
     m.label.toLowerCase().includes(query.toLowerCase())
   );
+
+  async function handleGenerateCustomMood() {
+    const trimmed = customPrompt.trim();
+    if (!trimmed) {
+      setCustomError("Describe the vibe first.");
+      return;
+    }
+    setCustomLoading(true);
+    setCustomError(null);
+    try {
+      const { data } = await api.post<CustomMoodResponse>("/custom-moods", { prompt: trimmed });
+      setCustomMood(data);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const fallback =
+        status === 503
+          ? "Custom AI moods aren't configured on this server. Pick a preset for now."
+          : status === 429
+            ? "Custom mood limit reached for today. Try again tomorrow."
+            : "Couldn't generate that mood. Try a different description.";
+      setCustomError(err?.response?.data?.error ?? fallback);
+    } finally {
+      setCustomLoading(false);
+    }
+  }
+
+  function handleClearCustomMood() {
+    setCustomMood(null);
+    setCustomError(null);
+  }
 
   async function handleStartGrading() {
     if (!selectedMood) return;
@@ -43,6 +92,15 @@ export default function MoodPage() {
         mood: selectedMood,
         clip_ids: clips.map((c) => c.id),
         generate_soundtrack: generateSoundtrack,
+        custom_mood: customMood
+          ? {
+              lut_path: customMood.lut_path,
+              name: customMood.name,
+              title: customMood.title,
+              description: customMood.description,
+              runtime: customMood.runtime,
+            }
+          : undefined,
       });
       navigate(`/processing/${data.job_id}`);
     } catch (err: any) {
@@ -95,6 +153,45 @@ export default function MoodPage() {
           <p className="mood-no-results">No moods match "{query}"</p>
         )}
       </div>
+
+      <section className="mood-custom-panel">
+        <h2 className="mood-custom-title">Or describe your own vibe</h2>
+        <p className="mood-custom-hint">
+          Generates a custom 3D LUT from a one-line mood description.
+          Overrides the preset selected above when set.
+        </p>
+        <div className="mood-custom-row">
+          <input
+            className="mood-custom-input"
+            type="text"
+            placeholder='e.g. "warm sunset vacation vibe"'
+            value={customPrompt}
+            maxLength={500}
+            onChange={(event) => setCustomPrompt(event.target.value)}
+            disabled={customLoading}
+          />
+          <button
+            type="button"
+            className="mood-custom-btn"
+            onClick={handleGenerateCustomMood}
+            disabled={customLoading || !customPrompt.trim()}
+          >
+            {customLoading ? "Generating…" : "Generate"}
+          </button>
+        </div>
+        {customError ? <p className="mood-custom-error">{customError}</p> : null}
+        {customMood ? (
+          <div className="mood-custom-card">
+            <div>
+              <strong className="mood-custom-card-title">{customMood.title}</strong>
+              <p className="mood-custom-card-desc">{customMood.description}</p>
+            </div>
+            <button type="button" className="mood-custom-clear" onClick={handleClearCustomMood}>
+              Use preset instead
+            </button>
+          </div>
+        ) : null}
+      </section>
 
       <label className="mood-soundtrack-toggle">
         <input

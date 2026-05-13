@@ -6,6 +6,21 @@ export type Mood =
   | "dreamy"
   | "energetic";
 
+export interface CustomMoodRuntime {
+  vignette: number;
+  grain: number;
+  halation: number;
+  person_protection: number;
+}
+
+export interface CustomMood {
+  lut_path: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  runtime: CustomMoodRuntime;
+}
+
 export interface MoodPreset {
   name: Mood;
   label: string;

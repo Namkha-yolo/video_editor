@@ -1,7 +1,7 @@
 import { supabase } from "../config/supabase.js";
 import { emitJobProgress } from "./jobEvents.js";
 import { buildExposureAdjustment, type ExposureAdjustment } from "./moodEngine.js";
-import type { Mood } from "../../../shared/types/mood.js";
+import type { CustomMood, Mood } from "../../../shared/types/mood.js";
 import type { ClipAnalysis } from "../../../shared/types/clip.js";
 
 interface ClipRecord {
@@ -59,6 +59,7 @@ export interface VideoProcessorDependencies {
 
 export interface ProcessJobOptions {
   generateSoundtrack?: boolean;
+  customMood?: CustomMood;
 }
 
 function getDependencies(
@@ -147,6 +148,7 @@ async function requestGrade(
   exposure: ExposureAdjustment,
   index: number,
   total: number,
+  customMood: { lutSignedUrl: string; runtime: CustomMood["runtime"] } | null,
   dependencies: VideoProcessorDependencies
 ): Promise<Buffer> {
   dependencies.emitProgress({
@@ -170,6 +172,8 @@ async function requestGrade(
       gain_r: exposure.gain_r,
       gain_g: exposure.gain_g,
       gain_b: exposure.gain_b,
+      custom_lut_url: customMood?.lutSignedUrl,
+      custom_runtime: customMood?.runtime,
     }),
   });
 
@@ -272,7 +276,7 @@ export async function processGradingJob(
   clipIds: string[],
   options: ProcessJobOptions & Partial<VideoProcessorDependencies> = {}
 ) {
-  const { generateSoundtrack = false, ...overrides } = options;
+  const { generateSoundtrack = false, customMood, ...overrides } = options;
   const dependencies = getDependencies(overrides);
   const uploadedOutputPaths: string[] = [];
 
@@ -327,6 +331,17 @@ export async function processGradingJob(
       }
     }
 
+    let customMoodContext: { lutSignedUrl: string; runtime: CustomMood["runtime"] } | null = null;
+    if (customMood) {
+      const { data: lutSigned, error: lutErr } = await dependencies.supabaseClient.storage
+        .from("outputs")
+        .createSignedUrl(customMood.lut_path, 3600);
+      if (lutErr || !lutSigned?.signedUrl) {
+        throw new Error(`Failed to sign custom LUT URL: ${lutErr?.message || "no url"}`);
+      }
+      customMoodContext = { lutSignedUrl: lutSigned.signedUrl, runtime: customMood.runtime };
+    }
+
     await dependencies.supabaseClient
       .from("jobs")
       .update({
@@ -348,6 +363,7 @@ export async function processGradingJob(
         exposure,
         index + 1,
         signedClips.length,
+        customMoodContext,
         dependencies
       );
 

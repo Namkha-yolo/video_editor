@@ -12,10 +12,24 @@ import { isResolutionKey, transcodeToBuffer, type ResolutionKey } from "../servi
 
 const router: RouterType = Router();
 
+const CustomMoodInputSchema = z.object({
+  lut_path: z.string().min(1).max(255),
+  name: z.string().min(1).max(64).optional(),
+  title: z.string().min(1).max(96).optional(),
+  description: z.string().max(240).optional(),
+  runtime: z.object({
+    vignette: z.number().min(0).max(0.8),
+    grain: z.number().int().min(0).max(25),
+    halation: z.number().min(0).max(0.6),
+    person_protection: z.number().min(0).max(1),
+  }),
+});
+
 const CreateJobSchema = z.object({
   mood: z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]),
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
   generate_soundtrack: z.boolean().optional(),
+  custom_mood: CustomMoodInputSchema.optional(),
 });
 
 function normaliseClipIds(clipIds: string[]) {
@@ -106,6 +120,8 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Some clips were not found or do not belong to you" });
     }
 
+    const customMood = parsedBody.data.custom_mood ?? null;
+
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .insert({
@@ -115,6 +131,7 @@ router.post("/", requireAuth, async (req, res) => {
         status: "queued",
         output_paths: [],
         error_message: null,
+        custom_mood: customMood,
       })
       .select("*")
       .single();
@@ -128,6 +145,7 @@ router.post("/", requireAuth, async (req, res) => {
       mood: parsedBody.data.mood,
       clipIds,
       generateSoundtrack,
+      customMood: customMood ?? undefined,
     });
 
     return res.status(201).json({

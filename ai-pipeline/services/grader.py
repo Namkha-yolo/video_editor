@@ -113,8 +113,8 @@ def _grading_subgraph(
     return [f"{input_label}{main_chain}", glow_chain, blend]
 
 
-def build_filter_spec(mood, exposure, mask_path=None):
-    lut_path = LUT_DIR / mood.lut_filename
+def build_filter_spec(mood, exposure, mask_path=None, lut_path_override=None):
+    lut_path = Path(lut_path_override) if lut_path_override else LUT_DIR / mood.lut_filename
     if not lut_path.is_file():
         raise GradingError(f"LUT file not found: {lut_path}")
 
@@ -155,11 +155,30 @@ def build_filter_spec(mood, exposure, mask_path=None):
     return ";".join(chains), True
 
 
-def grade_clip(file_path, mood_name, exposure=None, *, enable_masking=True):
+def grade_clip(
+    file_path,
+    mood_name,
+    exposure=None,
+    *,
+    enable_masking=True,
+    custom_lut_path=None,
+    runtime_overrides=None,
+):
     metadata = validate_video(file_path)
     timeout = compute_ffmpeg_timeout(metadata["duration"])
 
-    mood = get_mood(mood_name)
+    if custom_lut_path:
+        ro = runtime_overrides or {}
+        mood = MoodRuntime(
+            name=mood_name or "custom",
+            lut_filename=Path(custom_lut_path).name,
+            vignette=float(ro.get("vignette", 0.3)),
+            grain=int(ro.get("grain", 5)),
+            halation=float(ro.get("halation", 0.0)),
+            person_protection=float(ro.get("person_protection", 0.4)),
+        )
+    else:
+        mood = get_mood(mood_name)
     exposure = exposure or ExposureAdjustment()
 
     mask_path = None
@@ -182,7 +201,9 @@ def grade_clip(file_path, mood_name, exposure=None, *, enable_masking=True):
             mask_path = None
             logger.warning("Person segmentation failed (%s); falling back to global grade", exc)
 
-    filter_string, is_complex = build_filter_spec(mood, exposure, mask_path=mask_path)
+    filter_string, is_complex = build_filter_spec(
+        mood, exposure, mask_path=mask_path, lut_path_override=custom_lut_path
+    )
 
     out_tmp = tempfile.NamedTemporaryFile(
         suffix="_graded.mp4", delete=False, prefix="clipvibe_"

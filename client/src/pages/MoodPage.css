@@ -6,6 +6,141 @@
   padding: 48px 24px;
 }
 
+.mood-custom-panel {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+}
+
+.mood-custom-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f9fafb;
+  margin: 0;
+}
+
+.mood-custom-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.mood-custom-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mood-custom-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: #0b1120;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.mood-custom-input:focus {
+  border-color: #3b82f6;
+}
+
+.mood-custom-btn {
+  padding: 10px 16px;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mood-custom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mood-custom-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.mood-custom-error {
+  font-size: 13px;
+  color: #f87171;
+  margin: 0;
+}
+
+.mood-custom-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px;
+  background: #0b1120;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.mood-custom-card-title {
+  font-size: 14px;
+  color: #f9fafb;
+}
+
+.mood-custom-card-desc {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 4px 0 0;
+}
+
+.mood-custom-clear {
+  flex-shrink: 0;
+  background: transparent;
+  color: #9ca3af;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mood-custom-clear:hover {
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.layout--light .mood-custom-panel {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.layout--light .mood-custom-title {
+  color: #111827;
+}
+
+.layout--light .mood-custom-hint,
+.layout--light .mood-custom-card-desc {
+  color: #6b7280;
+}
+
+.layout--light .mood-custom-input,
+.layout--light .mood-custom-card {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.layout--light .mood-custom-card-title {
+  color: #111827;
+}
+
 .mood-soundtrack-toggle {
   display: inline-flex;
   align-items: flex-start;

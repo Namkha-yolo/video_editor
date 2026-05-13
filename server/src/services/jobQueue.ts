@@ -3,17 +3,23 @@ import { createRedisConnection, redis } from "../config/redis.js";
 import { supabase } from "../config/supabase.js";
 import { emitJobProgress } from "./jobEvents.js";
 import { processGradingJob } from "./videoProcessor.js";
-import type { Mood } from "../../../shared/types/mood.js";
+import type { CustomMood, Mood } from "../../../shared/types/mood.js";
 
 export interface GradingJobPayload {
   jobId: string;
   mood: Mood;
   clipIds: string[];
   generateSoundtrack?: boolean;
+  customMood?: CustomMood;
 }
 
 export interface JobRunnerDependencies {
-  processJob: (jobId: string, mood: Mood, clipIds: string[], options: { generateSoundtrack: boolean }) => Promise<unknown>;
+  processJob: (
+    jobId: string,
+    mood: Mood,
+    clipIds: string[],
+    options: { generateSoundtrack: boolean; customMood?: CustomMood }
+  ) => Promise<unknown>;
   updateJobStatus: (jobId: string, status: "analyzing" | "failed", errorMessage?: string) => Promise<void>;
   emitProgress: typeof emitJobProgress;
 }
@@ -32,7 +38,7 @@ export function createJobRunner(dependencies: JobRunnerDependencies) {
         message: "Job started",
       });
 
-      await dependencies.processJob(jobId, mood, clipIds, { generateSoundtrack });
+      await dependencies.processJob(jobId, mood, clipIds, { generateSoundtrack, customMood: payload.customMood });
     } catch (error: any) {
       const message = error instanceof Error ? error.message : "Job processing failed";
 

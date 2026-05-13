@@ -12,6 +12,7 @@ from starlette.background import BackgroundTask
 
 from services.analyzer import analyze_clip
 from services.assembler import PACING, AssemblyError, assemble
+from services.custom_mood import RecipeError, build_cube_string, recipe_from_dict
 from services.grader import ExposureAdjustment, grade_clip, GradingError
 from services.mood_grades import VALID_MOODS
 from services.music_generator import GenerationError, generate_for_mood, is_available as generation_available
@@ -58,6 +59,13 @@ class ProbeRequest(BaseModel):
     signed_url: str
 
 
+class CustomRuntime(BaseModel):
+    vignette: float = 0.3
+    grain: int = 5
+    halation: float = 0.0
+    person_protection: float = 0.4
+
+
 class GradeRequest(BaseModel):
     signed_url: str
     mood: str
@@ -68,6 +76,13 @@ class GradeRequest(BaseModel):
     gain_g: float = 1.0
     gain_b: float = 1.0
     enable_masking: bool = True
+    custom_lut_url: str | None = None
+    custom_runtime: CustomRuntime | None = None
+
+
+class CustomMoodBuildRequest(BaseModel):
+    recipe: dict
+    size: int = 33
 
 
 class ClipAnalysisInput(BaseModel):
@@ -178,6 +193,32 @@ async def _download_to_temp(signed_url: str) -> str:
             Path(tmp_path).unlink(missing_ok=True)
         raise
 
+    return tmp_path
+
+
+async def _download_lut_to_temp(signed_url: str) -> Path:
+    """Download a .cube file from a signed URL to a temp path.
+
+    LUTs are plain-text and small (a 33-cube at 6dp is ~2 MB max), so we
+    can buffer the whole thing into memory before writing.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(signed_url, timeout=60, follow_redirects=True)
+            response.raise_for_status()
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to download custom LUT: {exc}")
+
+    data = response.content
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="custom LUT exceeds 8 MB limit")
+    if b"LUT_3D_SIZE" not in data[:512]:
+        raise HTTPException(status_code=400, detail="downloaded file is not a valid .cube LUT")
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".cube", delete=False, prefix="clipvibe_custom_")
+    tmp_path = Path(tmp.name)
+    tmp.close()
+    tmp_path.write_bytes(data)
     return tmp_path
 
 
@@ -357,9 +398,44 @@ async def assemble_endpoint(body: AssembleRequest):
                 Path(p).unlink(missing_ok=True)
 
 
+@app.post("/custom-mood/build")
+async def build_custom_mood(body: CustomMoodBuildRequest):
+    """Turn a structured LUT recipe into an Adobe Cube 1.0 .cube file.
+
+    Caller (typically the server, after generating a recipe from a user
+    prompt) sends a recipe dict matching the schema in
+    services/custom_mood.py. We clamp out-of-range values, build the
+    procedural LUT, and return the cube contents plus the resolved
+    runtime config.
+    """
+    try:
+        recipe = recipe_from_dict(body.recipe)
+        cube = build_cube_string(recipe, size=max(9, min(33, int(body.size))))
+    except RecipeError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid recipe: {exc}")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid recipe value: {exc}")
+    except Exception as exc:
+        logger.exception("custom-mood build failed")
+        raise HTTPException(status_code=500, detail=f"build failed: {exc}")
+
+    return {
+        "name": recipe.name,
+        "title": recipe.title,
+        "description": recipe.description,
+        "runtime": {
+            "vignette": recipe.vignette,
+            "grain": recipe.grain,
+            "halation": recipe.halation,
+            "person_protection": recipe.person_protection,
+        },
+        "cube": cube,
+    }
+
+
 @app.post("/grade")
 async def grade(body: GradeRequest):
-    if body.mood not in VALID_MOODS:
+    if not body.custom_lut_url and body.mood not in VALID_MOODS:
         raise HTTPException(
             status_code=400,
             detail=f"Unknown mood: {body.mood!r}. Valid: {VALID_MOODS}",
@@ -375,13 +451,21 @@ async def grade(body: GradeRequest):
     )
 
     tmp_path = await _download_to_temp(body.signed_url)
+    custom_lut_temp: Path | None = None
 
     try:
+        if body.custom_lut_url:
+            custom_lut_temp = await _download_lut_to_temp(body.custom_lut_url)
+
+        runtime_overrides = body.custom_runtime.model_dump() if body.custom_runtime else None
+
         output_path = grade_clip(
             tmp_path,
             body.mood,
             exposure=exposure,
             enable_masking=body.enable_masking,
+            custom_lut_path=str(custom_lut_temp) if custom_lut_temp else None,
+            runtime_overrides=runtime_overrides,
         )
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(
@@ -401,3 +485,5 @@ async def grade(body: GradeRequest):
         raise HTTPException(status_code=500, detail=f"Grading failed: {e}")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+        if custom_lut_temp is not None:
+            custom_lut_temp.unlink(missing_ok=True)
