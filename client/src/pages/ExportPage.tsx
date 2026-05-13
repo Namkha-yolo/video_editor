@@ -6,6 +6,9 @@ import type { Clip, JobStatus, Mood } from "@clipvibe/shared";
 import { MOODS, formatMood } from "./dashboard/utils";
 import "./ExportPage.css";
 
+type Resolution = "1080p" | "720p" | "480p";
+const RESOLUTIONS: Resolution[] = ["1080p", "720p", "480p"];
+
 interface JobClip {
   id: string;
   file_name: string;
@@ -45,6 +48,10 @@ export default function ExportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [rendering, setRendering] = useState<Resolution | null>(null);
+  const [resolution, setResolution] = useState<Resolution>("1080p");
+  const [shareCopied, setShareCopied] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
@@ -91,6 +98,42 @@ export default function ExportPage() {
       }
     } finally {
       setDownloadingAll(false);
+    }
+  }
+
+  async function handleDownloadAssembled() {
+    if (!job) return;
+    setRenderError(null);
+    if (resolution === "1080p" && job.assembled_download_url) {
+      triggerDownload(job.assembled_download_url);
+      return;
+    }
+    setRendering(resolution);
+    try {
+      const { data } = await api.post<{ download_url: string }>(`/jobs/${job.id}/render`, {
+        resolution,
+      });
+      if (data?.download_url) {
+        triggerDownload(data.download_url);
+      } else {
+        setRenderError("Render succeeded but no download URL was returned.");
+      }
+    } catch (err: any) {
+      setRenderError(err?.response?.data?.error || err?.message || "Render failed.");
+    } finally {
+      setRendering(null);
+    }
+  }
+
+  async function handleCopyShareLink() {
+    if (!job) return;
+    const url = `${window.location.origin}/p/${job.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this share link:", url);
     }
   }
 
@@ -192,13 +235,38 @@ export default function ExportPage() {
       ) : null}
 
       <div className="export-toolbar">
-        {job.assembled_download_url ? (
+        {job.assembled_url ? (
+          <div className="export-download-group">
+            <select
+              className="export-resolution-select"
+              value={resolution}
+              onChange={(event) => setResolution(event.target.value as Resolution)}
+              disabled={rendering !== null}
+              aria-label="Export resolution"
+            >
+              {RESOLUTIONS.map((res) => (
+                <option key={res} value={res}>
+                  {res}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="export-btn"
+              onClick={handleDownloadAssembled}
+              disabled={rendering !== null}
+            >
+              {rendering ? `Rendering ${rendering}…` : "Download Final Video"}
+            </button>
+          </div>
+        ) : null}
+        {job.assembled_url ? (
           <button
             type="button"
-            className="export-btn"
-            onClick={() => triggerDownload(job.assembled_download_url!)}
+            className="export-btn export-btn--secondary"
+            onClick={handleCopyShareLink}
           >
-            Download Final Video
+            {shareCopied ? "Share link copied" : "Share"}
           </button>
         ) : null}
         <button
@@ -220,6 +288,8 @@ export default function ExportPage() {
           Back to Dashboard
         </button>
       </div>
+
+      {renderError ? <p className="export-error">{renderError}</p> : null}
 
       <div className="export-clip-list">
         {job.clips.map((clip, index) => (

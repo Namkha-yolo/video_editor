@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 import { enqueueGradingJob } from "../services/jobQueue.js";
 import { buildRateLimitHeaders, consumeJobCreationRateLimit } from "../services/rateLimiters.js";
+import { isResolutionKey, transcodeToBuffer, type ResolutionKey } from "../services/transcoder.js";
 
 const router: RouterType = Router();
 
@@ -283,6 +284,96 @@ router.get("/:id/download", requireAuth, async (req, res) => {
   }
 });
 
+const RenderSchema = z.object({
+  resolution: z.string(),
+});
+
+router.post("/:id/render", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user.id;
+    const parsed = RenderSchema.safeParse(req.body);
+    if (!parsed.success || !isResolutionKey(parsed.data.resolution)) {
+      return res.status(400).json({ error: "Invalid resolution. Use 1080p, 720p, or 480p." });
+    }
+    const resolution: ResolutionKey = parsed.data.resolution;
+
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, mood, assembled_path, status")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (jobError || !job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+    if (job.status !== "complete" || !job.assembled_path) {
+      return res.status(400).json({ error: "Job has no assembled output yet" });
+    }
+
+    const cachedPath = `${userId}/${id}/assembled-${resolution}.mp4`;
+    const downloadName = `clipvibe-${job.mood}-${resolution}.mp4`;
+
+    const cachedSigned = await supabase.storage
+      .from("outputs")
+      .createSignedUrl(cachedPath, 3600, { download: downloadName });
+
+    if (cachedSigned.data?.signedUrl) {
+      const head = await fetch(cachedSigned.data.signedUrl, { method: "HEAD" });
+      if (head.ok) {
+        return res.json({
+          job_id: id,
+          resolution,
+          path: cachedPath,
+          download_url: cachedSigned.data.signedUrl,
+          cached: true,
+        });
+      }
+    }
+
+    const sourceSigned = await supabase.storage
+      .from("outputs")
+      .createSignedUrl(job.assembled_path, 600);
+    if (sourceSigned.error || !sourceSigned.data?.signedUrl) {
+      return res.status(500).json({ error: "Could not access source video" });
+    }
+
+    const sourceResponse = await fetch(sourceSigned.data.signedUrl);
+    if (!sourceResponse.ok) {
+      return res.status(500).json({ error: "Failed to download source video" });
+    }
+    const sourceBuffer = Buffer.from(await sourceResponse.arrayBuffer());
+
+    const transcoded = await transcodeToBuffer(sourceBuffer, resolution);
+
+    const { error: uploadError } = await supabase.storage
+      .from("outputs")
+      .upload(cachedPath, transcoded, {
+        contentType: "video/mp4",
+        upsert: true,
+      });
+    if (uploadError) {
+      return res.status(500).json({ error: `Upload failed: ${uploadError.message}` });
+    }
+
+    const finalSigned = await supabase.storage
+      .from("outputs")
+      .createSignedUrl(cachedPath, 3600, { download: downloadName });
+
+    return res.json({
+      job_id: id,
+      resolution,
+      path: cachedPath,
+      download_url: finalSigned.data?.signedUrl || "",
+      cached: false,
+    });
+  } catch (error: any) {
+    console.error("Render endpoint error:", error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -301,6 +392,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const outputPaths = Array.isArray(job.output_paths) ? job.output_paths : [];
     const pathsToRemove = [...outputPaths, ...(job.assembled_path ? [job.assembled_path] : [])];
+    for (const resolution of ["1080p", "720p", "480p"] as const) {
+      pathsToRemove.push(`${userId}/${id}/assembled-${resolution}.mp4`);
+    }
     if (pathsToRemove.length > 0) {
       await supabase.storage.from("outputs").remove(pathsToRemove);
     }
