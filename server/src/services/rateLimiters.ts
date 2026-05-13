@@ -107,8 +107,17 @@ const jobCreationLimiter = new FixedWindowRateLimiter({
   windowMs: readPositiveInt("JOB_CREATE_RATE_LIMIT_WINDOW_MS", 60_000),
 });
 
+const soundtrackGenLimiter = new FixedWindowRateLimiter({
+  limit: readPositiveInt("SOUNDTRACK_GEN_RATE_LIMIT_MAX", 5),
+  windowMs: readPositiveInt("SOUNDTRACK_GEN_RATE_LIMIT_WINDOW_MS", 24 * 60 * 60 * 1000),
+});
+
 export function consumeJobCreationRateLimit(requesterId: string, now = Date.now()) {
   return jobCreationLimiter.consume(requesterId || "anonymous", now);
+}
+
+export function consumeSoundtrackGenRateLimit(requesterId: string, now = Date.now()) {
+  return soundtrackGenLimiter.consume(requesterId || "anonymous", now);
 }
 
 export function getRateLimiterConfig() {
@@ -116,9 +125,13 @@ export function getRateLimiterConfig() {
     jobs: {
       create: jobCreationLimiter.getConfig(),
     },
+    soundtrack: {
+      generate: soundtrackGenLimiter.getConfig(),
+    },
   };
 }
 
 export function resetRateLimitersForTests() {
   jobCreationLimiter.reset();
+  soundtrackGenLimiter.reset();
 }

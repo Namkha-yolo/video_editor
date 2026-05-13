@@ -3,7 +3,11 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { supabase } from "../config/supabase.js";
 import { enqueueGradingJob } from "../services/jobQueue.js";
-import { buildRateLimitHeaders, consumeJobCreationRateLimit } from "../services/rateLimiters.js";
+import {
+  buildRateLimitHeaders,
+  consumeJobCreationRateLimit,
+  consumeSoundtrackGenRateLimit,
+} from "../services/rateLimiters.js";
 import { isResolutionKey, transcodeToBuffer, type ResolutionKey } from "../services/transcoder.js";
 
 const router: RouterType = Router();
@@ -11,6 +15,7 @@ const router: RouterType = Router();
 const CreateJobSchema = z.object({
   mood: z.enum(["nostalgic", "cinematic", "hype", "chill", "dreamy", "energetic"]),
   clip_ids: z.array(z.string().uuid()).min(1).max(10),
+  generate_soundtrack: z.boolean().optional(),
 });
 
 function normaliseClipIds(clipIds: string[]) {
@@ -73,6 +78,18 @@ router.post("/", requireAuth, async (req, res) => {
       });
     }
 
+    const generateSoundtrack = Boolean(parsedBody.data.generate_soundtrack);
+    if (generateSoundtrack) {
+      const genLimit = consumeSoundtrackGenRateLimit(user.id);
+      if (!genLimit.allowed) {
+        return res.status(429).json({
+          error: "Soundtrack generation limit reached for today. Try again later or use the curated library.",
+          code: "SOUNDTRACK_GEN_RATE_LIMITED",
+          retry_after_seconds: genLimit.retryAfterSeconds,
+        });
+      }
+    }
+
     const clipIds = normaliseClipIds(parsedBody.data.clip_ids);
 
     const { data: clips, error: clipsError } = await supabase
@@ -110,6 +127,7 @@ router.post("/", requireAuth, async (req, res) => {
       jobId: job.id,
       mood: parsedBody.data.mood,
       clipIds,
+      generateSoundtrack,
     });
 
     return res.status(201).json({

@@ -74,6 +74,7 @@ jobs:
             ai-pipeline/services/assembler.py \
             ai-pipeline/services/grader.py \
             ai-pipeline/services/mood_grades.py \
+            ai-pipeline/services/music_generator.py \
             ai-pipeline/services/scene_detector.py \
             ai-pipeline/services/segmenter.py \
             ai-pipeline/services/sequencer.py \

@@ -191,6 +191,7 @@ export async function run() {
         assert.equal(assembleRequests[0].body.signed_urls.length, 2);
         assert.equal(assembleRequests[0].body.auto_order, true);
         assert.equal(assembleRequests[0].body.with_soundtrack, true);
+        assert.equal(assembleRequests[0].body.generate_soundtrack, false);
         assert.equal(assembleRequests[0].body.clip_analyses?.length, 2);
         assert.ok(
           assembleRequests[0].body.clip_analyses.every(
@@ -210,6 +211,28 @@ export async function run() {
         assert.equal(removals.length, 0);
         assert.equal(progressEvents.at(-1)?.status, "complete");
         assert.equal(progressEvents.at(-1)?.assembled_path, "user-1/job-1/assembled.mp4");
+      },
+    },
+    {
+      name: "processor forwards generateSoundtrack flag to /assemble",
+      run: async () => {
+        const { client } = createSupabaseMock();
+        const { fetchMock, requests } = createFetchMock();
+        const progressEvents = [];
+
+        await processGradingJob("job-4", "energetic", ["clip-1", "clip-2"], {
+          supabaseClient: client,
+          fetchImpl: fetchMock,
+          pipelineUrl: "http://pipeline.local",
+          emitProgress: (payload) => progressEvents.push(payload),
+          computeExposure: buildExposureAdjustment,
+          now: () => "2026-03-09T12:00:00.000Z",
+          generateSoundtrack: true,
+        });
+
+        const assembleRequests = requests.filter((r) => r.url.endsWith("/assemble"));
+        assert.equal(assembleRequests.length, 1);
+        assert.equal(assembleRequests[0].body.generate_soundtrack, true);
       },
     },
     {

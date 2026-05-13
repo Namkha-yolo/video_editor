@@ -14,6 +14,7 @@ from services.analyzer import analyze_clip
 from services.assembler import PACING, AssemblyError, assemble
 from services.grader import ExposureAdjustment, grade_clip, GradingError
 from services.mood_grades import VALID_MOODS
+from services.music_generator import GenerationError, generate_for_mood, is_available as generation_available
 from services.scene_detector import SceneDetectionError, primary_scene
 from services.sequencer import ClipFeatures, order_clips
 from services.soundtrack import pick_track_for_mood
@@ -84,6 +85,8 @@ class AssembleRequest(BaseModel):
     auto_order: bool = False
     clip_analyses: list[ClipAnalysisInput] | None = None
     with_soundtrack: bool = False
+    generate_soundtrack: bool = False
+    soundtrack_duration: int = 30
 
 
 # ---------------------------------------------------------------------------
@@ -305,19 +308,32 @@ async def assemble_endpoint(body: AssembleRequest):
         out_tmp.close()
 
         music_path: str | None = None
-        if body.with_soundtrack:
+        generated_path: Path | None = None
+        if body.generate_soundtrack:
+            try:
+                generated_path = generate_for_mood(body.mood, duration=body.soundtrack_duration)
+                music_path = str(generated_path)
+                logger.info("soundtrack: mood=%s source=generated path=%s", body.mood, generated_path)
+            except GenerationError as exc:
+                logger.warning("soundtrack generation failed (%s); falling back to library", exc)
+
+        if music_path is None and body.with_soundtrack:
             track = pick_track_for_mood(body.mood)
             if track is not None:
                 music_path = str(track.path)
-                logger.info("soundtrack: mood=%s track=%s kind=%s bpm=%.0f", body.mood, track.path.name, track.kind, track.bpm)
+                logger.info("soundtrack: mood=%s source=library track=%s kind=%s", body.mood, track.path.name, track.kind)
 
-        assemble(
-            input_paths,
-            output_path,
-            body.mood,
-            target_fps=body.target_fps,
-            music_path=music_path,
-        )
+        try:
+            assemble(
+                input_paths,
+                output_path,
+                body.mood,
+                target_fps=body.target_fps,
+                music_path=music_path,
+            )
+        finally:
+            if generated_path is not None:
+                generated_path.unlink(missing_ok=True)
 
         cleanup = BackgroundTask(Path(output_path).unlink, missing_ok=True)
         return FileResponse(

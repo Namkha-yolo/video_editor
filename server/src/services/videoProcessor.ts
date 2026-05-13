@@ -57,6 +57,10 @@ export interface VideoProcessorDependencies {
   now: () => string;
 }
 
+export interface ProcessJobOptions {
+  generateSoundtrack?: boolean;
+}
+
 function getDependencies(
   overrides: Partial<VideoProcessorDependencies> = {}
 ): VideoProcessorDependencies {
@@ -182,6 +186,7 @@ async function runAssembly(
   userId: string,
   outputPaths: string[],
   analyses: ClipAnalysis[],
+  generateSoundtrack: boolean,
   dependencies: VideoProcessorDependencies
 ): Promise<string | null> {
   dependencies.emitProgress({
@@ -221,6 +226,7 @@ async function runAssembly(
         mood,
         auto_order: true,
         with_soundtrack: true,
+        generate_soundtrack: generateSoundtrack,
         clip_analyses: analyses.map((a) => ({
           brightness: a.brightness,
           contrast: a.contrast,
@@ -264,8 +270,9 @@ export async function processGradingJob(
   jobId: string,
   mood: Mood,
   clipIds: string[],
-  overrides: Partial<VideoProcessorDependencies> = {}
+  options: ProcessJobOptions & Partial<VideoProcessorDependencies> = {}
 ) {
+  const { generateSoundtrack = false, ...overrides } = options;
   const dependencies = getDependencies(overrides);
   const uploadedOutputPaths: string[] = [];
 
@@ -366,6 +373,7 @@ export async function processGradingJob(
       orderedClips[0].user_id,
       outputPaths,
       analyses,
+      generateSoundtrack,
       dependencies
     );
     if (assembledPath) {

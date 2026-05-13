@@ -22,6 +22,7 @@ export default function MoodPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [generateSoundtrack, setGenerateSoundtrack] = useState(false);
 
   const filteredMoods = moods.filter((m) =>
     m.label.toLowerCase().includes(query.toLowerCase())
@@ -41,6 +42,7 @@ export default function MoodPage() {
       const { data } = await api.post<{ job_id: string }>("/jobs", {
         mood: selectedMood,
         clip_ids: clips.map((c) => c.id),
+        generate_soundtrack: generateSoundtrack,
       });
       navigate(`/processing/${data.job_id}`);
     } catch (err: any) {
@@ -93,6 +95,20 @@ export default function MoodPage() {
           <p className="mood-no-results">No moods match "{query}"</p>
         )}
       </div>
+
+      <label className="mood-soundtrack-toggle">
+        <input
+          type="checkbox"
+          checked={generateSoundtrack}
+          onChange={(event) => setGenerateSoundtrack(event.target.checked)}
+        />
+        <span className="mood-soundtrack-toggle-label">
+          Generate AI soundtrack
+          <span className="mood-soundtrack-toggle-hint">
+            Uses Replicate text-to-music (extra cost + ~30s latency). Off = curated library.
+          </span>
+        </span>
+      </label>
 
       {error && <p className="mood-page-error">{error}</p>}
 

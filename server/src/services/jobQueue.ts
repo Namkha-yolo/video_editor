@@ -9,10 +9,11 @@ export interface GradingJobPayload {
   jobId: string;
   mood: Mood;
   clipIds: string[];
+  generateSoundtrack?: boolean;
 }
 
 export interface JobRunnerDependencies {
-  processJob: (jobId: string, mood: Mood, clipIds: string[]) => Promise<unknown>;
+  processJob: (jobId: string, mood: Mood, clipIds: string[], options: { generateSoundtrack: boolean }) => Promise<unknown>;
   updateJobStatus: (jobId: string, status: "analyzing" | "failed", errorMessage?: string) => Promise<void>;
   emitProgress: typeof emitJobProgress;
 }
@@ -20,6 +21,7 @@ export interface JobRunnerDependencies {
 export function createJobRunner(dependencies: JobRunnerDependencies) {
   return async function runJob(payload: GradingJobPayload) {
     const { jobId, mood, clipIds } = payload;
+    const generateSoundtrack = Boolean(payload.generateSoundtrack);
 
     try {
       await dependencies.updateJobStatus(jobId, "analyzing");
@@ -30,7 +32,7 @@ export function createJobRunner(dependencies: JobRunnerDependencies) {
         message: "Job started",
       });
 
-      await dependencies.processJob(jobId, mood, clipIds);
+      await dependencies.processJob(jobId, mood, clipIds, { generateSoundtrack });
     } catch (error: any) {
       const message = error instanceof Error ? error.message : "Job processing failed";
 
