@@ -181,6 +181,7 @@ async function runAssembly(
   mood: Mood,
   userId: string,
   outputPaths: string[],
+  analyses: ClipAnalysis[],
   dependencies: VideoProcessorDependencies
 ): Promise<string | null> {
   dependencies.emitProgress({
@@ -218,6 +219,12 @@ async function runAssembly(
       body: JSON.stringify({
         signed_urls: gradedUrls,
         mood,
+        auto_order: true,
+        clip_analyses: analyses.map((a) => ({
+          brightness: a.brightness,
+          contrast: a.contrast,
+          color_temperature: a.color_temperature,
+        })),
       }),
     });
 
@@ -357,6 +364,7 @@ export async function processGradingJob(
       mood,
       orderedClips[0].user_id,
       outputPaths,
+      analyses,
       dependencies
     );
     if (assembledPath) {

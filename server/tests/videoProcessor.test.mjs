@@ -189,6 +189,17 @@ export async function run() {
         assert.equal(assembleRequests.length, 1);
         assert.equal(assembleRequests[0].body.mood, "cinematic");
         assert.equal(assembleRequests[0].body.signed_urls.length, 2);
+        assert.equal(assembleRequests[0].body.auto_order, true);
+        assert.equal(assembleRequests[0].body.clip_analyses?.length, 2);
+        assert.ok(
+          assembleRequests[0].body.clip_analyses.every(
+            (a) =>
+              typeof a.brightness === "number" &&
+              typeof a.contrast === "number" &&
+              typeof a.color_temperature === "number"
+          ),
+          "every clip_analyses entry carries brightness/contrast/color_temperature"
+        );
         assert.equal(updates[0]?.status, "grading");
         assert.equal(updates[1]?.status, "assembling");
         assert.equal(updates[2]?.status, "complete");

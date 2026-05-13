@@ -76,6 +76,7 @@ jobs:
             ai-pipeline/services/mood_grades.py \
             ai-pipeline/services/scene_detector.py \
             ai-pipeline/services/segmenter.py \
+            ai-pipeline/services/sequencer.py \
             ai-pipeline/scripts/build_luts.py \
             ai-pipeline/scripts/download_models.py \
             ai-pipeline/scripts/smoke_test_assembly.py \

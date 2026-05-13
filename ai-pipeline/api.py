@@ -15,6 +15,7 @@ from services.assembler import PACING, AssemblyError, assemble
 from services.grader import ExposureAdjustment, grade_clip, GradingError
 from services.mood_grades import VALID_MOODS
 from services.scene_detector import SceneDetectionError, primary_scene
+from services.sequencer import ClipFeatures, order_clips
 from utils.ffmpeg import probe
 
 logging.basicConfig(level=logging.INFO)
@@ -67,12 +68,20 @@ class GradeRequest(BaseModel):
     enable_masking: bool = True
 
 
+class ClipAnalysisInput(BaseModel):
+    brightness: float
+    contrast: float
+    color_temperature: int
+
+
 class AssembleRequest(BaseModel):
     signed_urls: list[str]
     mood: str
     trim_to_primary_scene: bool = False
     scene_threshold: float = 27.0
     target_fps: int = 30
+    auto_order: bool = False
+    clip_analyses: list[ClipAnalysisInput] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -253,10 +262,25 @@ async def assemble_endpoint(body: AssembleRequest):
     if len(body.signed_urls) > 20:
         raise HTTPException(status_code=400, detail="too many clips (max 20)")
 
+    signed_urls = list(body.signed_urls)
+    analyses = body.clip_analyses
+    if body.auto_order and analyses is not None and len(analyses) == len(signed_urls):
+        features = [
+            ClipFeatures(
+                brightness=a.brightness,
+                contrast=a.contrast,
+                color_temperature=a.color_temperature,
+            )
+            for a in analyses
+        ]
+        order = order_clips(features, body.mood)
+        signed_urls = [signed_urls[i] for i in order]
+        logger.info("auto-ordered clips for mood=%s order=%s", body.mood, order)
+
     downloaded: list[str] = []
     trimmed: list[str] = []
     try:
-        for url in body.signed_urls:
+        for url in signed_urls:
             downloaded.append(await _download_to_temp(url))
 
         if body.trim_to_primary_scene:
